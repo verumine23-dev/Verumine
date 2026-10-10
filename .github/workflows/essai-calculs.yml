@@ -1,0 +1,58 @@
+name: Vérifier les calculs (32 bits et 64 bits)
+
+# Compare les fonctions de calcul émulées sur ARM (sse2neon) avec les vraies instructions x86.
+# Les fonctions dont le résultat diffère donneraient des parts refusées par Luckpool.
+# Rien n'est publié : on lit seulement le « Summary » de l'exécution.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  comparer:
+    name: Comparer sse2neon (ARM) et x86
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer le NDK Android
+        id: ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26d
+
+      - name: Installer les outils
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static build-essential git python3 gcc-arm-linux-gnueabihf gcc-aarch64-linux-gnu
+
+      - name: Préparer l'en-tête et les versions de sse2neon
+        env:
+          ABI: armeabi-v7a
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          set -e
+          bash miner/build-android.sh header
+          git clone --depth 1 https://github.com/Oink70/CCminer-ARM-optimized.git src
+          mkdir -p hdr_old hdr_new
+          cp src/sse2neon.h hdr_old/sse2neon.h
+          sed -i 's/__ARM_ARCH == 7/__ARM_ARCH >= 7/g' hdr_old/sse2neon.h
+          curl -fsSL -o hdr_new/sse2neon.h https://raw.githubusercontent.com/DLTcollab/sse2neon/master/sse2neon.h
+
+      - name: Comparer
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          {
+            echo "## Téléphones 64 bits"
+            python3 miner/difftest/run_difftest.py --arch arm64 --label "64 bits : sse2neon de ccminer (celui qui est compilé)" --dir hdr_old --work work_64
+            echo
+            echo "## Téléphones 32 bits"
+            python3 miner/difftest/run_difftest.py --label "32 bits : sse2neon de ccminer" --dir hdr_old --work work_old
+            echo
+            python3 miner/difftest/run_difftest.py --label "32 bits : sse2neon récent (celui qui est compilé)" --dir hdr_new --work work_new
+          } | tee -a "$GITHUB_STEP_SUMMARY"
