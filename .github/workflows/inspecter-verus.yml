@@ -1,0 +1,65 @@
+name: Inspecter le code de Verus (quelles fonctions de calcul sont utilisées ?)
+
+# Rien n'est compilé ni publié : on lit seulement le « Summary ».
+# Objectif : savoir si le code de Verus utilise les 6 fonctions fausses de l'ancien sse2neon,
+# et voir comment le calcul du hash est organisé.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspecter:
+    name: Lire le code source de ccminer
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - name: Récupérer le code de ccminer
+        run: git clone --depth 1 https://github.com/Oink70/CCminer-ARM-optimized.git src
+
+      - name: Résumé
+        run: |
+          cd src
+          INC="--include=*.c --include=*.cpp --include=*.cc --include=*.h --include=*.hpp"
+          {
+            echo "## Version du code"
+            echo '```'
+            git rev-parse HEAD
+            echo '```'
+
+            echo "## Fonctions _mm_ utilisées par ccminer et Verus (hors sse2neon.h), avec le nombre d'utilisations"
+            echo '```'
+            grep -rhoE "_mm_[A-Za-z0-9_]+" $INC --exclude=sse2neon.h . | sort | uniq -c | sort -rn | awk '{printf "%s(%s) ", $2, $1}' | fold -s -w 140
+            echo
+            echo '```'
+
+            echo "## Les 6 fonctions fausses de l'ancien sse2neon : sont-elles utilisées ?"
+            echo '```'
+            for f in _mm_packus_epi32 _mm_sign_epi8 _mm_sign_epi16 _mm_sign_epi32 _mm_sra_epi16 _mm_sra_epi32; do
+              n="$(grep -rlw $INC --exclude=sse2neon.h "$f" . | wc -l)"
+              echo "$f : utilisée dans $n fichier(s)"
+              grep -rnw $INC --exclude=sse2neon.h "$f" . | head -3 | cut -c1-160
+            done
+            echo '```'
+
+            echo "## Fichiers du dossier verus"
+            echo '```'
+            ls -l verus | awk '{print $5, $9}'
+            echo '```'
+
+            echo "## Où le hash Verus est calculé (verus_hash, Verus2hash, haraka512...)"
+            echo '```'
+            grep -rnE "verus_hash|Verus2hash|VerusHash|haraka512_keyed|verusclhash\(" $INC --exclude=sse2neon.h . | head -40 | cut -c1-170
+            echo '```'
+
+            for f in verus/verus_hash.h verus/verus_clhash.h; do
+              if [ -f "$f" ]; then
+                echo "## $f (début)"
+                echo '```'
+                sed -n 1,130p "$f" | cut -c1-170
+                echo '```'
+              fi
+            done
+          } | tee -a "$GITHUB_STEP_SUMMARY"
