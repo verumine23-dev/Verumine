@@ -1,8 +1,8 @@
 name: Inspecter le code de Verus (quelles fonctions de calcul sont utilisées ?)
 
 # Rien n'est compilé ni publié : on lit seulement le « Summary ».
-# Objectif : savoir si le code de Verus utilise les 6 fonctions fausses de l'ancien sse2neon,
-# et voir comment le calcul du hash est organisé.
+# Objectif : voir comment le calcul du hash Verus est organisé et quelles parties dépendent de l'architecture
+# (64 bits ou 32 bits).
 
 on:
   workflow_dispatch:
@@ -29,37 +29,28 @@ jobs:
             git rev-parse HEAD
             echo '```'
 
-            echo "## Fonctions _mm_ utilisées par ccminer et Verus (hors sse2neon.h), avec le nombre d'utilisations"
+            echo "## Blocs propres à une architecture (64 bits, 32 bits, grands entiers)"
             echo '```'
-            grep -rhoE "_mm_[A-Za-z0-9_]+" $INC --exclude=sse2neon.h . | sort | uniq -c | sort -rn | awk '{printf "%s(%s) ", $2, $1}' | fold -s -w 140
-            echo
-            echo '```'
-
-            echo "## Les 6 fonctions fausses de l'ancien sse2neon : sont-elles utilisées ?"
-            echo '```'
-            for f in _mm_packus_epi32 _mm_sign_epi8 _mm_sign_epi16 _mm_sign_epi32 _mm_sra_epi16 _mm_sra_epi32; do
-              n="$(grep -rlw $INC --exclude=sse2neon.h "$f" . | wc -l)"
-              echo "$f : utilisée dans $n fichier(s)"
-              grep -rnw $INC --exclude=sse2neon.h "$f" . | head -3 | cut -c1-160
-            done
+            grep -rnE "__aarch64__|__arm__|__ARM_ARCH|__ARM_FEATURE|__SIZEOF_|__LP64__|__ILP32__|__int128" $INC --exclude=sse2neon.h -B1 -A2 verus *.cpp *.c *.h 2>/dev/null | head -320 | cut -c1-170
             echo '```'
 
-            echo "## Fichiers du dossier verus"
+            echo "## Définition de _mm_roti_epi64"
             echo '```'
-            ls -l verus | awk '{print $5, $9}'
-            echo '```'
-
-            echo "## Où le hash Verus est calculé (verus_hash, Verus2hash, haraka512...)"
-            echo '```'
-            grep -rnE "verus_hash|Verus2hash|VerusHash|haraka512_keyed|verusclhash\(" $INC --exclude=sse2neon.h . | head -40 | cut -c1-170
+            grep -rn -B1 -A8 "define _mm_roti_epi64\|_mm_roti_epi64 *(" $INC --exclude=sse2neon.h . | head -40 | cut -c1-170
             echo '```'
 
-            for f in verus/verus_hash.h verus/verus_clhash.h; do
-              if [ -f "$f" ]; then
-                echo "## $f (début)"
-                echo '```'
-                sed -n 1,130p "$f" | cut -c1-170
-                echo '```'
-              fi
-            done
+            echo "## verus/verusscan.cpp (lignes 100 à 290)"
+            echo '```'
+            sed -n 100,290p verus/verusscan.cpp | cut -c1-170
+            echo '```'
+
+            echo "## verus/verus_hash.cpp (lignes 90 à 180)"
+            echo '```'
+            sed -n 90,180p verus/verus_hash.cpp | cut -c1-170
+            echo '```'
+
+            echo "## verus/verus_clhash.h (entier)"
+            echo '```'
+            cat verus/verus_clhash.h | cut -c1-400
+            echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
