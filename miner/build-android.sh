@@ -161,8 +161,8 @@ static inline poly128_t vmull_p64(poly64_t a, poly64_t b) {
 HDR
 }
 
-# 32 bits : la copie de sse2neon.h fournie avec ccminer se trompe sur plusieurs fonctions (essai « calculs »).
-# On la remplace par la version récente, qui passe les mêmes tests sans aucune différence avec x86.
+# FACULTATIF (USE_NEW_SSE2NEON=1) : version récente de sse2neon.h. La copie fournie avec ccminer se trompe sur 6 fonctions,
+# mais le code de Verus ne les utilise pas (voir le flux « Inspecter le code de Verus »).
 use_recent_sse2neon() {
   local new="$WORK/sse2neon-recent.h" own n h
   if [ ! -s "$new" ]; then
@@ -364,7 +364,7 @@ build_variant() {
 
   # 32 bits : version récente de sse2neon.h (l'ancienne se trompe sur plusieurs fonctions)
   if [ "$ABI" = "armeabi-v7a" ]; then
-    if [ "${USE_NEW_SSE2NEON:-1}" = 1 ]; then use_recent_sse2neon; fi
+    if [ "${USE_NEW_SSE2NEON:-0}" = 1 ]; then use_recent_sse2neon; fi   # facultatif : les fonctions fausses ne sont pas utilisées par Verus
     # (au cas où l'ancienne version est gardée) : elle n'accepte que l'ARMv7 exactement
     find . -name 'sse2neon.h' -exec sed -i 's/__ARM_ARCH == 7/__ARM_ARCH >= 7/g' {} +
   fi
