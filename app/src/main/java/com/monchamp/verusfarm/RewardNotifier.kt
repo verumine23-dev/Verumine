@@ -59,6 +59,18 @@ object RewardNotifier {
         }
     }
 
+    // Notification NON silencieuse quand le minage démarre tout seul (ex. retour d'internet).
+    fun notifyMiningStarted(ctx: Context) {
+        ensureChannel(ctx)
+        try {
+            (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .notify(1003, build(ctx, "Minage démarré ⛏️",
+                    "Ton téléphone mine pour toi. Laisse-le branché et connecté à internet."))
+        } catch (e: Exception) {
+            Log.w(TAG, "notifyMiningStarted", e)
+        }
+    }
+
     fun notifyReward(ctx: Context, level: Int) {
         ensureChannel(ctx)
         try {

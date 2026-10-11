@@ -61,6 +61,7 @@ class MiningService : Service() {
     private var retryDelayMs = 5_000L
     private var retryPending = false
     private var hashed = false
+    private var startNotified = false   // notification « minage démarré » déjà envoyée pour cette session
     private var runningThreads = 0
     private var currentHost = ""
     private var accepted = 0
@@ -180,6 +181,7 @@ class MiningService : Service() {
             return
         }
         if (!hasInternet) {
+            startNotified = false   // on re-préviendra quand le minage reprendra au retour d'internet
             haltMiner("En attente d'internet…", Tone.WARN)
             return
         }
@@ -260,6 +262,11 @@ class MiningService : Service() {
                 retryDelayMs = 5_000L
                 // On retient le programme qui fonctionne sur ce téléphone
                 if (Prefs.engineIndex(this) != engineIdx) Prefs.setEngineIndex(this, engineIdx)
+                // Notification non silencieuse : le minage a bien démarré (une fois par session)
+                if (!startNotified) {
+                    startNotified = true
+                    RewardNotifier.notifyMiningStarted(this)
+                }
             }
             val suffix = if (level == Level.REDUCED) " (puissance réduite)" else ""
             MiningState.set {
