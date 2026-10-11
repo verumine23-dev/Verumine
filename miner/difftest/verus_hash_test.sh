@@ -76,10 +76,9 @@ extern "C" {
 }
 uint64_t verusclhash_port2_2(void * random, const unsigned char buf[64], uint64_t keyMask, uint16_t * __restrict fixrand,
                              uint16_t * __restrict fixrandex, __m128i *g_prand, __m128i *g_prandex);
-#if defined(__ANDROID__)
-/* Android exige un segment de données par thread bien aligné */
-__attribute__((used)) static __thread char tls_pad[1] __attribute__((aligned(64))) = {1};
-#endif
+/* Android exige un segment de données par thread aligné sur 64 octets (32 en ARM 32 bits).
+   Variable globale (non « static ») et réellement utilisée : le compilateur ne peut pas la supprimer. */
+extern "C" { __thread char verus_tls_pad[64] __attribute__((aligned(64))) = {1}; }
 '''
 tail = r'''
 static uint64_t rs = 0x9E3779B97F4A7C15ULL;
@@ -87,9 +86,7 @@ static uint64_t rnd(void) { rs ^= rs << 13; rs ^= rs >> 7; rs ^= rs << 17; retur
 static __m128i data_key[VERUS_KEY_SIZE] __attribute__((aligned(64)));
 static __m128i pr[32 * 16] __attribute__((aligned(64))), prx[32 * 16] __attribute__((aligned(64)));
 int main() {
-#if defined(__ANDROID__)
-  if (tls_pad[0] == 2) return 3;
-#endif
+  { volatile char *tp = verus_tls_pad; tp[1] = tp[0]; }
   uint8_t full[1487];
   alignas(16) uint8_t half[64];
   uint16_t fr[32] __attribute__((aligned(64))), frx[32] __attribute__((aligned(64)));
@@ -127,7 +124,15 @@ build() {  # build <nom> <dossier> <cc> <cxx> <options>
     $cxx $f "$b/h.o" "$b/vc.o" "$b/hp.o" "$b/haraka.o" -o "$b/run"; } > "$b/build.log" 2>&1
 }
 
+tls_align() {  # alignement du segment TLS du programme (doit être 64)
+  local re="${READELF:-}"
+  [ -z "$re" ] && [ -n "${TC:-}" ] && re="$TC/llvm-readelf"
+  [ -z "$re" ] && re="readelf"
+  "$re" -lW "$1" 2>/dev/null | awk '$1=="TLS"{print $NF}'
+}
+
 run() {  # run <nom> <qemu>
+  echo "Programme $1 : alignement du segment TLS = $(tls_align "$W/b_$1/run")"
   "$2" -cpu max "$W/b_$1/run" > "$W/out_$1.txt" 2> "$W/b_$1/run.log"
 }
 
