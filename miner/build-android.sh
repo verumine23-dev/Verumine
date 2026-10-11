@@ -403,11 +403,17 @@ build_variant() {
 
   local flags="$base_flags $arch_flags -w -I$PREFIX/include -include $WORK/android-compat.h"
   local asflags="$base_flags $arch_flags"
+  # haraka_portable.c définit unpacklo32_test / unpackhi32_test en « inline » (C99).
+  # En -O3 elles sont inlinées, mais la variante « compat » (-fno-inline-functions) ne les
+  # inline pas : sous C99 une fonction « inline » non statique n'émet pas de copie externe,
+  # d'où « undefined symbol » à l'édition de liens. -fgnu89-inline rétablit l'émission d'une
+  # définition externe (C uniquement) et règle le problème sans toucher au C++.
+  local cflags="$flags -fgnu89-inline"
   # shellcheck disable=SC2086
   ./configure --host="$HOST" --with-libcurl="$PREFIX" \
     CC="$CC" CXX="$CXX" \
     CPPFLAGS="-I$PREFIX/include" \
-    CFLAGS="$flags" CXXFLAGS="$flags" CCASFLAGS="$asflags" \
+    CFLAGS="$cflags" CXXFLAGS="$flags" CCASFLAGS="$asflags" \
     LDFLAGS="-L$PREFIX/lib -static-libstdc++ $OMP_LDFLAGS" \
     LIBS="-lssl -lcrypto -ldl -lm" \
     PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig" \
