@@ -362,6 +362,22 @@ build_variant() {
   find . -name '*.o' -delete
   find . -name '.deps' -type d -prune -exec rm -rf {} +
 
+  # CORRECTION DU CALCUL 32 BITS (cause des parts refusées par Luckpool) :
+  # dans verus_clhash_portable.cpp, « 0x10000000L << rounds » utilise le type « long ».
+  # « long » fait 64 bits sur ARM 64 bits mais 32 bits sur ARM 32 bits : pour rounds = 4 à 7,
+  # le résultat déborde et le test de bit est faux, donc le hash est faux.
+  # On force un calcul sur 64 bits. Sur ARM 64 bits, le résultat est strictement identique.
+  local vc="verus/verus_clhash_portable.cpp" fixed_n
+  if [ -f "$vc" ]; then
+    sed -i 's/0x10000000L << rounds/(uint64_t)0x10000000 << rounds/g' "$vc"
+    fixed_n="$(grep -c '(uint64_t)0x10000000 << rounds' "$vc" || true)"
+    echo "Correction 64 bits du test de bit Verus : $fixed_n ligne(s) corrigée(s)"
+    if grep -q '0x10000000L << rounds' "$vc"; then
+      echo "ERREUR : la correction du test de bit n'a pas été appliquée" >&2
+      return 1
+    fi
+  fi
+
   # 32 bits : version récente de sse2neon.h (l'ancienne se trompe sur plusieurs fonctions)
   if [ "$ABI" = "armeabi-v7a" ]; then
     if [ "${USE_NEW_SSE2NEON:-0}" = 1 ]; then use_recent_sse2neon; fi   # facultatif : les fonctions fausses ne sont pas utilisées par Verus
