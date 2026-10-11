@@ -1,0 +1,39 @@
+name: Vérifier le hash Verus (32 bits contre 64 bits)
+
+# Calcule 4000 vrais hashes Verus avec le programme 64 bits et le programme 32 bits
+# (mêmes options que l'APK) et compare. Rien n'est publié : on lit seulement le « Summary ».
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  comparer:
+    name: Comparer les hashes 32 bits et 64 bits
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer le NDK Android
+        id: ndk
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26d
+
+      - name: Installer l'émulateur ARM
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static python3 git
+
+      - name: Comparer
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          {
+            echo "## Hash Verus : 32 bits comparé au 64 bits"
+            bash miner/difftest/verus_hash_test.sh
+          } 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
