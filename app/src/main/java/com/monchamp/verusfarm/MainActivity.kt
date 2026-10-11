@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
 
     private var checks by mutableStateOf(Checks())
     private var wallet by mutableStateOf("")
+    private var promptSetup by mutableStateOf(false)
 
     private val notifLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { refreshChecks() }
@@ -57,8 +58,9 @@ class MainActivity : ComponentActivity() {
         if (Prefs.isFirstRun(this)) {
             Prefs.markFirstRunDone(this)
             Prefs.setEnabled(this, true)
-            askNotificationPermission()
         }
+        // Propose la configuration (autorisations) tant qu'elle n'a pas été validée
+        promptSetup = !Prefs.setupDone(this)
 
         MiningState.set { it.copy(enabled = Prefs.isEnabled(this), miningMs = Prefs.miningMs(this)) }
         refreshChecks()
@@ -90,8 +92,10 @@ class MainActivity : ComponentActivity() {
                         onAskBattery = { askBatteryExemption() },
                         onAskAdmin = { askAdmin() },
                         onOpenAppSettings = { openAppSettings() },
-                        onOpenUrl = { openUrl(it) }
-                    )
+                        onOpenUrl = { openUrl(it) },
+                        onSetupDone = { Prefs.setSetupDone(this@MainActivity); promptSetup = false }
+                    ),
+                    promptSetup = promptSetup
                 )
             }
         }
@@ -188,13 +192,17 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun PoolRefresher(wallet: String) {
     val owner = LocalLifecycleOwner.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     LaunchedEffect(wallet) {
         if (!Config.isUsableWallet(wallet)) return@LaunchedEffect
         owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             var round = 0
             while (true) {
                 val stats = withContext(Dispatchers.IO) { PoolApi.fetchStats(wallet) }
-                if (stats != null) PoolState.stats.value = stats
+                if (stats != null) {
+                    Earnings.update(ctx, stats)   // met à jour le solde d'après les calculs acceptés
+                    PoolState.stats.value = stats
+                }
                 if (round % 5 == 0) {
                     val hist = withContext(Dispatchers.IO) { PoolApi.fetchHistory(wallet) }
                     if (hist.isNotEmpty()) PoolState.history.value = hist

@@ -20,6 +20,9 @@ fun fmtVrsc(v: Double): String = String.format(Locale.US, "%.4f", v)
 // Compteur simulé : 10 décimales (0.0000000001 … 1.0000000000)
 fun fmtVrsc10(v: Double): String = String.format(Locale.US, "%.10f", v)
 
+// Compteur simulé de l'accueil : 9 décimales (part de 0.000000001)
+fun fmtSim(v: Double): String = String.format(Locale.US, "%.9f", v)
+
 // Montant en devise avec 2 décimales
 fun fmtMoney(v: Double): String = String.format(Locale.US, "%,.2f", v)
 

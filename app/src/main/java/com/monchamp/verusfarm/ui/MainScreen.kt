@@ -31,7 +31,8 @@ class Actions(
     val onAskBattery: () -> Unit,
     val onAskAdmin: () -> Unit,
     val onOpenAppSettings: () -> Unit,
-    val onOpenUrl: (String) -> Unit
+    val onOpenUrl: (String) -> Unit,
+    val onSetupDone: () -> Unit = {}
 )
 
 @Composable
@@ -40,11 +41,23 @@ fun AppRoot(
     pool: PoolStats?,
     history: List<HashPoint>,
     device: DeviceInfo,
-    actions: Actions
+    actions: Actions,
+    promptSetup: Boolean = false
 ) {
     var splashDone by rememberSaveable { mutableStateOf(false) }
+    var setupDismissed by rememberSaveable { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         MainScreen(ui, pool, history, device, actions)
+        if (splashDone && promptSetup && !setupDismissed) {
+            SetupDialog(
+                checks = device.checks,
+                onNotif = actions.onAskNotif,
+                onBattery = actions.onAskBattery,
+                onAdmin = actions.onAskAdmin,
+                onAutostart = actions.onOpenAppSettings,
+                onDone = { setupDismissed = true; actions.onSetupDone() }
+            )
+        }
         if (!splashDone) SplashScreen(onFinished = { splashDone = true })
     }
 }

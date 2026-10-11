@@ -78,23 +78,29 @@ fun HomeTab(ui: MiningUi, pool: PoolStats?, device: DeviceInfo, goTab: (Int) -> 
 
     var sim by remember { mutableStateOf(Simulation.value(ctx)) }
     var energy by remember { mutableStateOf(Rewards.energy(ctx)) }
+    var taps by remember { mutableStateOf(Prefs.tapCount(ctx)) }
     var xp by remember { mutableStateOf(Prefs.xp(ctx)) }
     val pluses = remember { mutableStateListOf<Long>() }
+    val gifts = remember { mutableStateListOf<Long>() }
     var tapMsg by remember { mutableStateOf<String?>(null) }
     var lastTap by remember { mutableStateOf(0L) }
     var nextId by remember { mutableStateOf(0L) }
 
-    // Rafraîchit le compteur et l'énergie en continu tant que l'écran est visible.
+    // Rafraîchit le compteur et l'énergie tant que l'écran est visible (rythme calme).
     LaunchedEffect(Unit) {
         while (true) {
             sim = Simulation.value(ctx)
             energy = Rewards.energy(ctx)
+            taps = Prefs.tapCount(ctx)
             xp = Prefs.xp(ctx)
-            delay(80)
+            delay(500)
         }
     }
 
-    val level = Rewards.level(xp)
+    val level = Rewards.level(ctx)
+    val giftProgress = (taps % Rewards.TAPS_PER_GIFT).toFloat() / Rewards.TAPS_PER_GIFT.toFloat()
+    val giftsToward = ((taps % Rewards.TAPS_PER_LEVEL) / Rewards.TAPS_PER_GIFT).toInt()
+    val levelProgress = (taps % Rewards.TAPS_PER_LEVEL).toFloat() / Rewards.TAPS_PER_LEVEL.toFloat()
 
     fun onTap() {
         val now = System.currentTimeMillis()
@@ -107,13 +113,16 @@ fun HomeTab(ui: MiningUi, pool: PoolStats?, device: DeviceInfo, goTab: (Int) -> 
         }
         tapMsg = null
         pluses.add(nextId++)
+        if (res.giftUnlocked) gifts.add(nextId++)
         RewardNotifier.scheduleEnergyFull(ctx)
         if (res.leveledUp) RewardNotifier.notifyReward(ctx, res.newLevel)
         energy = Rewards.energy(ctx)
+        taps = Prefs.tapCount(ctx)
         xp = Prefs.xp(ctx)
         sim = Simulation.value(ctx)
     }
 
+  Box(Modifier.fillMaxSize()) {
     TabColumn {
         BrandHeader(ui.tone)
 
@@ -128,14 +137,21 @@ fun HomeTab(ui: MiningUi, pool: PoolStats?, device: DeviceInfo, goTab: (Int) -> 
             }
         }
 
-        Column {
-            Text("Mon champ de minage", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Texte)
-            val n = pool?.workers?.size ?: 0
-            Text(
-                if (n > 0) "$n ${if (n > 1) "appareils connectés" else "appareil connecté"} au réseau"
-                else "On mine ensemble pour un meilleur avenir.",
-                fontSize = 14.sp, color = TexteDoux
-            )
+        // Titre + pastille de récompense (toujours visible, sans scroller)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Mon champ de minage", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Texte)
+                val n = pool?.workers?.size ?: 0
+                Text(
+                    if (n > 0) "$n ${if (n > 1) "appareils connectés" else "appareil connecté"} au réseau"
+                    else "On mine ensemble pour un meilleur avenir.",
+                    fontSize = 13.sp, color = TexteDoux
+                )
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                RewardOrb(progress = giftProgress, gifts = giftsToward)
+                Text("$giftsToward/3", fontSize = 10.sp, color = Lavande)
+            }
         }
 
         // Compteur SIMULÉ (clairement étiqueté : ce n'est pas un solde retirable)
@@ -144,8 +160,8 @@ fun HomeTab(ui: MiningUi, pool: PoolStats?, device: DeviceInfo, goTab: (Int) -> 
                 Column(Modifier.weight(1f)) {
                     Text("Activité estimée (simulation)", fontSize = 13.sp, color = TexteDoux)
                     Text(
-                        "${fmtVrsc10(sim)} VRSC",
-                        fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Texte
+                        "${fmtSim(sim)} VRSC",
+                        fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Texte
                     )
                     Text(
                         "Illustration du minage en arrière-plan. Ton solde réel se trouve dans Wallet.",
@@ -180,25 +196,25 @@ fun HomeTab(ui: MiningUi, pool: PoolStats?, device: DeviceInfo, goTab: (Int) -> 
             }
             EnergyBar(energy)
             Text(
-                "La barre se recharge toute seule : pleine en 1 heure. Chaque tape en consomme un peu.",
+                "Pleine, la barre permet au moins 150 tapotages. Elle se recharge toute seule (pleine en 1 heure).",
                 fontSize = 11.sp, color = TexteDoux
             )
             if (tapMsg != null) Text(tapMsg!!, fontSize = 12.sp, color = Ambre)
         }
 
-        // Carte XP / récompenses
+        // Compteur de récompenses (se remplit après 3 cadeaux = 450 tapotages)
         NeonCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text("Niveau $level", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Texte)
-                    Text("$xp XP", fontSize = 12.sp, color = TexteDoux)
+                    Text("$xp XP · $giftsToward/3 cadeaux vers le prochain niveau", fontSize = 12.sp, color = TexteDoux)
                 }
                 Box(
                     Modifier.clip(RoundedCornerShape(10.dp)).background(Violet.copy(alpha = 0.25f))
                         .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) { Text("🎁 Récompenses", fontSize = 12.sp, color = Lavande) }
             }
-            XpBar(Rewards.levelProgress(xp))
+            XpBar(levelProgress)
             Text(Rewards.perkLabel(level), fontSize = 12.sp, color = Menthe)
         }
 
@@ -216,6 +232,14 @@ fun HomeTab(ui: MiningUi, pool: PoolStats?, device: DeviceInfo, goTab: (Int) -> 
 
         AddDeviceCard { goTab(3) }
     }
+
+    // Cadeaux qui s'envolent de la pastille vers le compteur de récompenses, en bas
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        gifts.forEach { id ->
+            key(id) { GiftFly(onEnd = { gifts.remove(id) }) }
+        }
+    }
+  }
 }
 
 @Composable
@@ -366,10 +390,11 @@ fun WalletTab(pool: PoolStats?, device: DeviceInfo, actions: Actions) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // Solde disponible : pour l'instant le solde réel renvoyé par le pool.
-    // À remplacer par le solde attribué à CET utilisateur quand le mécanisme
-    // d'attribution des gains sera en place.
-    val available = pool?.balance ?: Prefs.availableVrsc(ctx)
+    // Solde basé sur les calculs acceptés par Luckpool pour CET appareil (voir Earnings.kt).
+    // Recalculé à chaque rafraîchissement du pool.
+    val available = remember(pool) { Prefs.availableVrsc(ctx) }
+    val acceptedShares = remember(pool) { Prefs.acceptedShares(ctx) }
+    val pricePer10 = remember(pool) { Prefs.pricePer10(ctx) }
 
     var method by remember { mutableStateOf(PayoutMethod.MOBILE_MONEY) }
     var country by remember {
@@ -409,6 +434,13 @@ fun WalletTab(pool: PoolStats?, device: DeviceInfo, actions: Actions) {
             Text("Solde disponible", fontSize = 13.sp, color = TexteDoux)
             Text("${fmtVrsc(available)} VRSC", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Texte)
             if (ratesReady) Text("≈ ${fmtMoney(Rates.vrscAmountToCurrency(available, curCode))} $curCode", fontSize = 12.sp, color = Menthe)
+            InfoRow("Calculs acceptés", "${acceptedShares.toLong()}")
+            if (pricePer10 > 0.0) InfoRow("Valeur de 10 calculs", "${fmtVrsc(pricePer10)} VRSC")
+            Text(
+                "Ton solde est calculé à partir de tes calculs acceptés par le réseau. La valeur reste sous " +
+                    "la vraie récompense du pool.",
+                fontSize = 11.sp, color = TexteDoux
+            )
             if (pool == null) Text("Connexion au réseau en cours…", fontSize = 12.sp, color = Ambre)
         }
 
@@ -613,9 +645,11 @@ fun MoreTab(ui: MiningUi, device: DeviceInfo, actions: Actions) {
 
         NeonCard {
             SectionTitle("Cet appareil")
+            InfoRow("Nom sur le réseau", DeviceIdentity.workerName(ctx))
             InfoRow("Processeur", "${device.abi}, ${device.cores} cœurs")
             Text(
-                "Le nom de cet appareil et l'adresse de récompense sont gérés automatiquement par l'application.",
+                "Ce nom identifie ton téléphone sur le réseau de minage. Il est unique et attribué " +
+                    "automatiquement ; l'adresse de récompense est gérée par l'application.",
                 fontSize = 12.sp, color = TexteDoux
             )
         }

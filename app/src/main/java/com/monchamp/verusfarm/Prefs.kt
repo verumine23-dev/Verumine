@@ -70,6 +70,19 @@ object Prefs {
     fun simBonus(ctx: Context): Double = getDouble(ctx, "sim_bonus", 0.0)
     fun addSimBonus(ctx: Context, v: Double) = putDouble(ctx, "sim_bonus", simBonus(ctx) + v)
 
+    fun simVersion(ctx: Context): Int = sp(ctx).getInt("sim_version", 0)
+    fun resetSim(ctx: Context, version: Int) {
+        sp(ctx).edit()
+            .putLong("sim_start", System.currentTimeMillis())
+            .putLong("sim_bonus", java.lang.Double.doubleToRawLongBits(0.0))
+            .putInt("sim_version", version)
+            .apply()
+    }
+
+    // --------------------------------------------- Compteur de tapotages (total)
+    fun tapCount(ctx: Context): Long = sp(ctx).getLong("tap_count", 0L)
+    fun addTap(ctx: Context) = sp(ctx).edit().putLong("tap_count", tapCount(ctx) + 1L).apply()
+
     // ------------------------------------------------------- Énergie / tapotage
     fun energyValue(ctx: Context): Float = sp(ctx).getFloat("energy_val", 100f)
     fun energyTs(ctx: Context): Long = sp(ctx).getLong("energy_ts", System.currentTimeMillis())
@@ -87,9 +100,23 @@ object Prefs {
     fun setLastNotifiedLevel(ctx: Context, v: Int) = sp(ctx).edit().putInt("xp_level_notified", v).apply()
 
     // --------------------------------------------------- Solde retirable (VRSC)
-    //  Crédité par le mécanisme d'attribution des gains (à venir). 0 par défaut.
+    //  Calculé à partir des calculs acceptés par Luckpool pour cet appareil.
     fun availableVrsc(ctx: Context): Double = getDouble(ctx, "available_vrsc", 0.0)
     fun setAvailableVrsc(ctx: Context, v: Double) = putDouble(ctx, "available_vrsc", v)
+
+    // Nombre cumulé de calculs (parts) acceptés par Luckpool pour cet appareil
+    fun acceptedShares(ctx: Context): Double = getDouble(ctx, "accepted_shares", 0.0)
+    fun addAcceptedShares(ctx: Context, v: Double) = putDouble(ctx, "accepted_shares", acceptedShares(ctx) + v)
+    // Dernière valeur de parts vue chez Luckpool pour le worker (pour calculer l'écart)
+    fun lastWorkerShares(ctx: Context): Double = getDouble(ctx, "last_worker_shares", 0.0)
+    fun setLastWorkerShares(ctx: Context, v: Double) = putDouble(ctx, "last_worker_shares", v)
+    // Prix estimé de 10 calculs acceptés (VRSC), dérivé des vraies récompenses de Luckpool
+    fun pricePer10(ctx: Context): Double = getDouble(ctx, "price_per10", 0.0)
+    fun setPricePer10(ctx: Context, v: Double) = putDouble(ctx, "price_per10", v)
+
+    // ----------------------------------------- Configuration initiale (onboarding)
+    fun setupDone(ctx: Context): Boolean = sp(ctx).getBoolean("setup_done", false)
+    fun setSetupDone(ctx: Context) = sp(ctx).edit().putBoolean("setup_done", true).apply()
 
     // ------------------------------------------------- Dernier pays choisi
     fun lastCountry(ctx: Context): String = sp(ctx).getString("last_country", "") ?: ""

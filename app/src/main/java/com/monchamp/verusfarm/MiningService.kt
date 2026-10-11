@@ -218,6 +218,7 @@ class MiningService : Service() {
                 runningThreads = threads
                 currentHost = host
                 hashed = false
+                MiningState.addLog("Nom sur le réseau : ${DeviceIdentity.workerName(this)}")
                 accepted = 0
                 rejected = 0
                 lowDiffRejects = 0

@@ -7,95 +7,89 @@ import android.content.Context
 //
 //  - Compteur d'accueil : une SIMULATION de l'activité de minage en arrière-plan.
 //    Ce n'est PAS de l'argent gagné ; le vrai solde retirable est dans Wallet.
-//  - Tapotage : un mini-jeu d'engagement. Chaque tape donne +2 XP et fait
-//    légèrement avancer la simulation. Il n'influence pas le vrai minage.
-//  - XP : accumulés par le tapotage et le temps de minage. Les niveaux donnent
-//    des avantages réels : une réduction des frais de retrait de l'administrateur.
-//  - Énergie : limite l'usage du tapotage. Pleine en 1 heure, consommée à chaque
-//    tape. À 0 %, il faut attendre qu'elle se recharge.
+//  - Tapotage : un mini-jeu d'engagement. Il n'influence pas le vrai minage.
+//  - Énergie : pleine, elle permet AU MOINS 150 tapotages avant d'être vide,
+//    puis se recharge toute seule (pleine en 1 heure).
+//  - Récompenses : tous les 150 tapotages, un cadeau se débloque (anneau plein).
+//    Il faut 3 cadeaux (3 × 150 = 450 tapotages) pour gagner un niveau, et chaque
+//    niveau donne un avantage réel : −1 % sur les frais de retrait.
 // =============================================================================
 object Rewards {
 
-    // -------- Énergie --------
+    // -------- Énergie / tapotage --------
     const val ENERGY_MAX = 100f
-    const val ENERGY_REFILL_SECONDS = 3600f      // pleine en 1 heure
-    const val TAP_COST = 4f                       // chaque tape consomme 4 %
+    const val ENERGY_REFILL_SECONDS = 3600f          // pleine en 1 heure
+    const val TAPS_PER_FULL_BAR = 150                 // 150 tapotages pour vider une barre pleine
+    const val TAP_COST = ENERGY_MAX / TAPS_PER_FULL_BAR   // ≈ 0,667 %
     private const val REFILL_PER_MS = ENERGY_MAX / (ENERGY_REFILL_SECONDS * 1000f)
 
-    // Énergie actuelle, recalculée d'après le temps écoulé depuis la dernière mesure.
+    // -------- Paliers de récompense --------
+    const val TAPS_PER_GIFT = 150                     // un cadeau (anneau plein) tous les 150 tapotages
+    const val GIFTS_PER_LEVEL = 3                     // 3 cadeaux pour un niveau
+    const val TAPS_PER_LEVEL = TAPS_PER_GIFT * GIFTS_PER_LEVEL   // 450 tapotages = 1 niveau = −1 % de frais
+    const val XP_PER_TAP = 2
+
     fun energy(ctx: Context): Float {
         val stored = Prefs.energyValue(ctx)
         val elapsed = (System.currentTimeMillis() - Prefs.energyTs(ctx)).coerceAtLeast(0L)
-        val v = (stored + elapsed * REFILL_PER_MS).coerceIn(0f, ENERGY_MAX)
-        return v
+        return (stored + elapsed * REFILL_PER_MS).coerceIn(0f, ENERGY_MAX)
     }
 
     fun canTap(ctx: Context): Boolean = energy(ctx) >= TAP_COST
 
-    // Millisecondes restantes avant énergie pleine (pour programmer la notification).
     fun msUntilFull(ctx: Context): Long {
         val missing = (ENERGY_MAX - energy(ctx)).coerceAtLeast(0f)
         return (missing / REFILL_PER_MS).toLong()
     }
 
-    data class TapResult(val ok: Boolean, val xpGain: Int, val newLevel: Int, val leveledUp: Boolean)
+    data class TapResult(val ok: Boolean, val xpGain: Int, val newLevel: Int, val leveledUp: Boolean, val giftUnlocked: Boolean)
 
-    // Applique une tape. Renvoie ok=false si l'énergie est insuffisante.
     fun tap(ctx: Context): TapResult {
         val current = energy(ctx)
         if (current < TAP_COST) {
             Prefs.setEnergy(ctx, current, System.currentTimeMillis())
-            return TapResult(false, 0, level(Prefs.xp(ctx)), false)
+            return TapResult(false, 0, level(ctx), false, false)
         }
         Prefs.setEnergy(ctx, current - TAP_COST, System.currentTimeMillis())
-        Prefs.setEnergyNotified(ctx, false)   // elle n'est plus pleine : on pourra re-notifier
+        Prefs.setEnergyNotified(ctx, false)
 
-        val before = level(Prefs.xp(ctx))
+        val beforeTaps = Prefs.tapCount(ctx)
+        val beforeLevel = level(ctx)
+        Prefs.addTap(ctx)
         Prefs.addXp(ctx, XP_PER_TAP.toLong())
-        // La tape fait légèrement avancer la simulation (équivaut à ~3 s de minage simulé).
-        Prefs.addSimBonus(ctx, Simulation.RATE_PER_MS * 3000.0)
-        val after = level(Prefs.xp(ctx))
-        return TapResult(true, XP_PER_TAP, after, after > before)
+        Prefs.addSimBonus(ctx, Simulation.RATE_PER_MS * 2000.0)   // léger coup de pouce à la simulation
+        val afterTaps = beforeTaps + 1
+        val afterLevel = level(ctx)
+
+        val giftUnlocked = (afterTaps % TAPS_PER_GIFT == 0L)
+        return TapResult(true, XP_PER_TAP, afterLevel, afterLevel > beforeLevel, giftUnlocked)
     }
 
-    // -------- XP & niveaux --------
-    const val XP_PER_TAP = 2
+    // -------- Niveaux (basés sur le nombre de tapotages) --------
+    fun level(ctx: Context): Int = (Prefs.tapCount(ctx) / TAPS_PER_LEVEL).toInt()
 
-    // XP nécessaires pour atteindre un niveau (progression douce).
-    fun xpForLevel(level: Int): Long {
-        if (level <= 0) return 0
-        return (100.0 * level * level).toLong()      // niv.1=100, niv.2=400, niv.3=900…
-    }
+    // Progression (0..1) de l'anneau de cadeau (cycle de 150 tapotages)
+    fun giftProgress(ctx: Context): Float =
+        (Prefs.tapCount(ctx) % TAPS_PER_GIFT).toFloat() / TAPS_PER_GIFT.toFloat()
 
-    fun level(xp: Long): Int {
-        var l = 0
-        while (xp >= xpForLevel(l + 1)) l++
-        return l
-    }
+    // Nombre de cadeaux accumulés vers le prochain niveau (0, 1 ou 2)
+    fun giftsTowardLevel(ctx: Context): Int =
+        ((Prefs.tapCount(ctx) % TAPS_PER_LEVEL) / TAPS_PER_GIFT).toInt()
 
-    // Progression (0..1) vers le niveau suivant.
-    fun levelProgress(xp: Long): Float {
-        val l = level(xp)
-        val cur = xpForLevel(l)
-        val next = xpForLevel(l + 1)
-        if (next <= cur) return 0f
-        return ((xp - cur).toFloat() / (next - cur).toFloat()).coerceIn(0f, 1f)
-    }
+    // Progression (0..1) du compteur de récompenses du bas (cycle de 450 tapotages)
+    fun levelProgress(ctx: Context): Float =
+        (Prefs.tapCount(ctx) % TAPS_PER_LEVEL).toFloat() / TAPS_PER_LEVEL.toFloat()
 
     // -------- Avantage réel : réduction des frais de retrait --------
-    //  +1 % de réduction par niveau, plafonné à 15 %.
-    //  (Les frais admin de 20 % peuvent donc descendre jusqu'à 5 %.)
     const val MAX_FEE_DISCOUNT = 15.0
     fun feeDiscountPercent(ctx: Context): Double =
-        level(Prefs.xp(ctx)).toDouble().coerceAtMost(MAX_FEE_DISCOUNT)
+        level(ctx).toDouble().coerceAtMost(MAX_FEE_DISCOUNT)
 
-    // Frais effectifs appliqués à un retrait, après réduction de fidélité.
     fun effectiveFeePercent(ctx: Context): Double =
         (Config.ADMIN_FEE_PERCENT - feeDiscountPercent(ctx)).coerceAtLeast(0.0)
 
-    // Libellé de l'avantage du palier courant (affiché dans la page).
     fun perkLabel(level: Int): String = when {
-        level <= 0 -> "Aucun avantage pour l'instant — tape pour gagner de l'XP."
+        level <= 0 -> "Tape pour remplir l'anneau. 3 cadeaux (450 tapotages) = −1 % de frais."
         level < 5 -> "−$level % sur les frais de retrait"
         level < 10 -> "−$level % sur les frais + priorité de traitement"
         level < 15 -> "−$level % sur les frais + priorité + badge Mineur confirmé"
@@ -103,16 +97,23 @@ object Rewards {
     }
 }
 
-// Compteur SIMULÉ de l'accueil : part de 0,0000000001 VRSC et atteint 1 VRSC en 3 mois.
+// Compteur SIMULÉ de l'accueil : part RÉELLEMENT de 0,000000001 VRSC, très lentement.
 object Simulation {
-    const val START = 0.0000000001                  // 1e-10 VRSC
+    const val SIM_VERSION = 2
+    const val START = 0.000000001                    // 1e-9 VRSC, valeur de départ exacte
     private const val TARGET = 1.0
-    private const val NINETY_DAYS_MS = 90.0 * 24 * 3600 * 1000
-    const val RATE_PER_MS = (TARGET - START) / NINETY_DAYS_MS
+    // Vitesse réduite : atteint 1 VRSC en ~2 ans (au lieu de 3 mois), donc une évolution calme.
+    private const val DAYS_TO_TARGET = 730.0
+    private const val DURATION_MS = DAYS_TO_TARGET * 24 * 3600 * 1000
+    const val RATE_PER_MS = (TARGET - START) / DURATION_MS
 
-    // Valeur simulée à l'instant présent (vitesse constante + petits bonus de tapotage).
+    private fun ensure(ctx: Context) {
+        if (Prefs.simVersion(ctx) != SIM_VERSION) Prefs.resetSim(ctx, SIM_VERSION)
+    }
+
     fun value(ctx: Context): Double {
+        ensure(ctx)
         val elapsed = (System.currentTimeMillis() - Prefs.simStart(ctx)).coerceAtLeast(0L)
-        return START + elapsed * RATE_PER_MS + Prefs.simBonus(ctx)
+        return (START + elapsed * RATE_PER_MS + Prefs.simBonus(ctx)).coerceAtMost(TARGET)
     }
 }

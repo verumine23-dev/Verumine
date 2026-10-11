@@ -13,6 +13,7 @@ object Diagnostics {
         sb.appendLine("Version de l'application : ${appVersion(ctx)}")
         sb.appendLine("Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
         sb.appendLine("Appareil : ${Build.MANUFACTURER} ${Build.MODEL}")
+        sb.appendLine("Nom sur le réseau (worker) : ${DeviceIdentity.workerName(ctx)}")
         sb.appendLine("Types de processeur pris en charge : ${DeviceIdentity.allAbis()}")
         sb.appendLine("Système 64 bits : ${if (Build.SUPPORTED_64_BIT_ABIS.isNotEmpty()) "oui" else "non"}")
         sb.appendLine("Cœurs : ${Runtime.getRuntime().availableProcessors()}")

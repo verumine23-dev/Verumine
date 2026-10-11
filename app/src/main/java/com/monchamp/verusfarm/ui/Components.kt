@@ -273,6 +273,47 @@ fun FloatingPlus(onEnd: () -> Unit) {
     )
 }
 
+// Pastille de récompense : une icône cadeau entourée d'un anneau de progression.
+// L'anneau se remplit tous les 150 tapotages ; "gifts" (0..2) montre l'avancée vers le niveau.
+@Composable
+fun RewardOrb(progress: Float, gifts: Int, size: Int = 56, modifier: Modifier = Modifier) {
+    Box(Modifier.size(size.dp).then(modifier), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val stroke = 5.dp.toPx()
+            val arc = Size(this.size.width - stroke, this.size.height - stroke)
+            val tl = Offset(stroke / 2f, stroke / 2f)
+            drawArc(Bord.copy(alpha = 0.6f), -90f, 360f, false, tl, arc, style = Stroke(stroke))
+            drawArc(
+                Brush.sweepGradient(listOf(Menthe, Neon, Menthe)),
+                -90f, 360f * progress.coerceIn(0f, 1f), false, tl, arc,
+                style = Stroke(stroke, cap = StrokeCap.Round)
+            )
+        }
+        Text("🎁", fontSize = (size / 3).sp)
+    }
+}
+
+// Cadeau qui s'envole vers le bas (déclenché à chaque anneau rempli). onEnd le retire.
+@Composable
+fun GiftFly(onEnd: () -> Unit) {
+    val t = remember { Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        t.animateTo(1f, tween(1100))
+        onEnd()
+    }
+    val f = t.value
+    Text(
+        "🎁",
+        fontSize = 34.sp,
+        modifier = Modifier.graphicsLayer {
+            translationY = 60f + 520f * f
+            alpha = if (f < 0.85f) 1f else (1f - f) / 0.15f
+            val s = 1f - 0.35f * f
+            scaleX = s; scaleY = s
+        }
+    )
+}
+
 // Barre d'énergie horizontale.
 @Composable
 fun EnergyBar(percent: Float, modifier: Modifier = Modifier) {
@@ -438,6 +479,55 @@ fun FormField(
         label = { Text(label) }, singleLine = singleLine,
         keyboardOptions = KeyboardOptions(keyboardType = keyboard),
         modifier = Modifier.fillMaxWidth()
+    )
+}
+
+// Écran de configuration proposé dès la première ouverture : l'utilisateur accorde
+// les autorisations sans avoir à aller dans Plus (dont l'anti-mise en veille).
+@Composable
+fun SetupDialog(
+    checks: com.monchamp.verusfarm.Checks,
+    onNotif: () -> Unit,
+    onBattery: () -> Unit,
+    onAdmin: () -> Unit,
+    onAutostart: () -> Unit,
+    onDone: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = { },
+        containerColor = CarteHaute,
+        title = { Text("Avant de commencer", color = Texte) },
+        text = {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    "Pour que ton téléphone mine sans s'arrêter, accorde ces autorisations. " +
+                        "La plus importante empêche Android de mettre l'application en veille.",
+                    fontSize = 13.sp, color = TexteDoux
+                )
+                CheckRow(
+                    "Batterie sans restriction", "ESSENTIEL : empêche Android d'endormir le minage.",
+                    checks.battery, "Autoriser", onBattery
+                )
+                CheckRow(
+                    "Notifications", "Pour suivre le minage et les récompenses.",
+                    checks.notif, "Autoriser", onNotif
+                )
+                CheckRow(
+                    "Protection contre la désinstallation", "Garde l'application active (administrateur).",
+                    checks.admin, "Activer", onAdmin
+                )
+                CheckRow(
+                    "Démarrage automatique", "Sur Tecno, Infinix, Xiaomi : autorise le lancement auto.",
+                    false, "Ouvrir", onAutostart
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDone) { Text("C'est parti") }
+        }
     )
 }
 
