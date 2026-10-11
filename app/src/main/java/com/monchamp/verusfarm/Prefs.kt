@@ -30,14 +30,8 @@ object Prefs {
     fun setCustomName(ctx: Context, value: String) =
         sp(ctx).edit().putString("worker_name", value.filter { it.isLetterOrDigit() }.lowercase().take(12)).apply()
 
-    fun mode(ctx: Context): PowerMode =
-        try {
-            PowerMode.valueOf(sp(ctx).getString("mode", PowerMode.MAX.name) ?: PowerMode.MAX.name)
-        } catch (e: Exception) {
-            PowerMode.MAX
-        }
-
-    fun setMode(ctx: Context, value: PowerMode) = sp(ctx).edit().putString("mode", value.name).apply()
+    // Le minage tourne toujours à pleine puissance (plus de choix de mode).
+    fun mode(ctx: Context): PowerMode = PowerMode.MAX
 
     // Quel programme de minage fonctionne sur ce téléphone (0 = optimisé, 1 = secours)
     fun engineIndex(ctx: Context): Int = sp(ctx).getInt("engine_idx", 0)
@@ -56,4 +50,52 @@ object Prefs {
         sp(ctx).edit().putString("random_suffix", created).apply()
         return created
     }
+
+    // ---------------------------------------------------------------- Double
+    private fun getDouble(ctx: Context, key: String, def: Double): Double {
+        val bits = sp(ctx).getLong(key, java.lang.Double.doubleToRawLongBits(def))
+        return java.lang.Double.longBitsToDouble(bits)
+    }
+    private fun putDouble(ctx: Context, key: String, v: Double) =
+        sp(ctx).edit().putLong(key, java.lang.Double.doubleToRawLongBits(v)).apply()
+
+    // ---------------------------------------------- Compteur simulé (accueil)
+    fun simStart(ctx: Context): Long {
+        val s = sp(ctx).getLong("sim_start", 0L)
+        if (s != 0L) return s
+        val now = System.currentTimeMillis()
+        sp(ctx).edit().putLong("sim_start", now).apply()
+        return now
+    }
+    fun simBonus(ctx: Context): Double = getDouble(ctx, "sim_bonus", 0.0)
+    fun addSimBonus(ctx: Context, v: Double) = putDouble(ctx, "sim_bonus", simBonus(ctx) + v)
+
+    // ------------------------------------------------------- Énergie / tapotage
+    fun energyValue(ctx: Context): Float = sp(ctx).getFloat("energy_val", 100f)
+    fun energyTs(ctx: Context): Long = sp(ctx).getLong("energy_ts", System.currentTimeMillis())
+    fun setEnergy(ctx: Context, value: Float, ts: Long) =
+        sp(ctx).edit().putFloat("energy_val", value).putLong("energy_ts", ts).apply()
+
+    // Dernière fois qu'on a prévenu l'utilisateur que l'énergie était pleine
+    fun energyNotified(ctx: Context): Boolean = sp(ctx).getBoolean("energy_notified", true)
+    fun setEnergyNotified(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("energy_notified", v).apply()
+
+    // ------------------------------------------------------------------- XP
+    fun xp(ctx: Context): Long = sp(ctx).getLong("xp", 0L)
+    fun addXp(ctx: Context, delta: Long) = sp(ctx).edit().putLong("xp", xp(ctx) + delta).apply()
+    fun lastNotifiedLevel(ctx: Context): Int = sp(ctx).getInt("xp_level_notified", 0)
+    fun setLastNotifiedLevel(ctx: Context, v: Int) = sp(ctx).edit().putInt("xp_level_notified", v).apply()
+
+    // --------------------------------------------------- Solde retirable (VRSC)
+    //  Crédité par le mécanisme d'attribution des gains (à venir). 0 par défaut.
+    fun availableVrsc(ctx: Context): Double = getDouble(ctx, "available_vrsc", 0.0)
+    fun setAvailableVrsc(ctx: Context, v: Double) = putDouble(ctx, "available_vrsc", v)
+
+    // ------------------------------------------------- Dernier pays choisi
+    fun lastCountry(ctx: Context): String = sp(ctx).getString("last_country", "") ?: ""
+    fun setLastCountry(ctx: Context, code: String) = sp(ctx).edit().putString("last_country", code).apply()
+
+    // --------------------------------------- Historique des demandes de retrait
+    fun withdrawals(ctx: Context): String = sp(ctx).getString("withdrawals", "[]") ?: "[]"
+    fun setWithdrawals(ctx: Context, json: String) = sp(ctx).edit().putString("withdrawals", json).apply()
 }

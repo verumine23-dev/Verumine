@@ -17,6 +17,12 @@ fun fmtHash(hs: Double): String {
 
 fun fmtVrsc(v: Double): String = String.format(Locale.US, "%.4f", v)
 
+// Compteur simulé : 10 décimales (0.0000000001 … 1.0000000000)
+fun fmtVrsc10(v: Double): String = String.format(Locale.US, "%.10f", v)
+
+// Montant en devise avec 2 décimales
+fun fmtMoney(v: Double): String = String.format(Locale.US, "%,.2f", v)
+
 // 52320000 ms -> "14h 32m"
 fun fmtDuration(ms: Long): String {
     val totalMin = ms / 60_000L

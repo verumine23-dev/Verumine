@@ -18,20 +18,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import com.monchamp.verusfarm.Diagnostics
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,21 +40,80 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.monchamp.verusfarm.Catalog
 import com.monchamp.verusfarm.Config
+import com.monchamp.verusfarm.Country
+import com.monchamp.verusfarm.Crypto
+import com.monchamp.verusfarm.Cryptos
+import com.monchamp.verusfarm.Diagnostics
+import com.monchamp.verusfarm.DeviceIdentity
 import com.monchamp.verusfarm.HashPoint
 import com.monchamp.verusfarm.MiningUi
+import com.monchamp.verusfarm.PayoutMethod
 import com.monchamp.verusfarm.PoolStats
-import com.monchamp.verusfarm.PowerMode
+import com.monchamp.verusfarm.Prefs
+import com.monchamp.verusfarm.Rates
+import com.monchamp.verusfarm.RewardNotifier
+import com.monchamp.verusfarm.Rewards
+import com.monchamp.verusfarm.Simulation
 import com.monchamp.verusfarm.Tone
+import com.monchamp.verusfarm.Withdraw
+import com.monchamp.verusfarm.WithdrawRequest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // =============================================================== ACCUEIL
 @Composable
-fun HomeTab(ui: MiningUi, pool: PoolStats?, device: DeviceInfo, actions: Actions, goTab: (Int) -> Unit) {
+fun HomeTab(ui: MiningUi, pool: PoolStats?, device: DeviceInfo, goTab: (Int) -> Unit) {
+    val ctx = LocalContext.current
+
+    var sim by remember { mutableStateOf(Simulation.value(ctx)) }
+    var energy by remember { mutableStateOf(Rewards.energy(ctx)) }
+    var xp by remember { mutableStateOf(Prefs.xp(ctx)) }
+    val pluses = remember { mutableStateListOf<Long>() }
+    var tapMsg by remember { mutableStateOf<String?>(null) }
+    var lastTap by remember { mutableStateOf(0L) }
+    var nextId by remember { mutableStateOf(0L) }
+
+    // Rafraîchit le compteur et l'énergie en continu tant que l'écran est visible.
+    LaunchedEffect(Unit) {
+        while (true) {
+            sim = Simulation.value(ctx)
+            energy = Rewards.energy(ctx)
+            xp = Prefs.xp(ctx)
+            delay(80)
+        }
+    }
+
+    val level = Rewards.level(xp)
+
+    fun onTap() {
+        val now = System.currentTimeMillis()
+        if (now - lastTap < 120L) return          // anti-abus : pas de rafales
+        lastTap = now
+        val res = Rewards.tap(ctx)
+        if (!res.ok) {
+            tapMsg = "Plus d'énergie. Reviens dans quelques instants pour profiter du tapotage."
+            return
+        }
+        tapMsg = null
+        pluses.add(nextId++)
+        RewardNotifier.scheduleEnergyFull(ctx)
+        if (res.leveledUp) RewardNotifier.notifyReward(ctx, res.newLevel)
+        energy = Rewards.energy(ctx)
+        xp = Prefs.xp(ctx)
+        sim = Simulation.value(ctx)
+    }
+
     TabColumn {
         BrandHeader(ui.tone)
 
@@ -76,37 +132,80 @@ fun HomeTab(ui: MiningUi, pool: PoolStats?, device: DeviceInfo, actions: Actions
             Text("Mon champ de minage", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Texte)
             val n = pool?.workers?.size ?: 0
             Text(
-                if (n > 0) "$n ${if (n > 1) "appareils connectés" else "appareil connecté"} à Luckpool"
+                if (n > 0) "$n ${if (n > 1) "appareils connectés" else "appareil connecté"} au réseau"
                 else "On mine ensemble pour un meilleur avenir.",
                 fontSize = 14.sp, color = TexteDoux
             )
         }
 
+        // Compteur SIMULÉ (clairement étiqueté : ce n'est pas un solde retirable)
         NeonCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Solde en attente", fontSize = 13.sp, color = TexteDoux)
+                    Text("Activité estimée (simulation)", fontSize = 13.sp, color = TexteDoux)
                     Text(
-                        if (pool != null) "${fmtVrsc(pool.balance)} VRSC" else "—",
-                        fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Texte
+                        "${fmtVrsc10(sim)} VRSC",
+                        fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Texte
                     )
                     Text(
-                        if (pool != null) "En maturation : ${fmtVrsc(pool.immature)} VRSC" else "Connexion à Luckpool…",
-                        fontSize = 12.sp, color = if (pool != null) Menthe else TexteDoux
+                        "Illustration du minage en arrière-plan. Ton solde réel se trouve dans Wallet.",
+                        fontSize = 11.sp, color = Lavande
                     )
                 }
-                LogoMark(Modifier.height(72.dp))
+                LogoMark(Modifier.height(64.dp))
             }
         }
 
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-            TapButton(ui = ui, cores = device.cores, onClick = actions.onToggle)
+        // Zone de tapotage
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            TapButton(
+                cores = device.cores,
+                activeCores = if (ui.enabled && ui.tone == Tone.OK) device.cores else device.cores / 2,
+                enabled = energy >= Rewards.TAP_COST,
+                centerTop = "TAP",
+                centerBottom = if (energy >= Rewards.TAP_COST) "Tape pour gagner" else "Recharge…",
+                onTap = { onTap() }
+            )
+            // Les « +2 XP » qui remontent vers le compteur
+            pluses.forEach { id ->
+                key(id) { FloatingPlus(onEnd = { pluses.remove(id) }) }
+            }
         }
 
-        val online = pool?.workers?.count { it.online } ?: 0
-        val total = pool?.workers?.size ?: 0
+        // Barre d'énergie
+        NeonCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Énergie de tapotage", fontSize = 13.sp, color = TexteDoux, modifier = Modifier.weight(1f))
+                Text("${energy.toInt()} %", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (energy >= Rewards.TAP_COST) Menthe else Ambre)
+            }
+            EnergyBar(energy)
+            Text(
+                "La barre se recharge toute seule : pleine en 1 heure. Chaque tape en consomme un peu.",
+                fontSize = 11.sp, color = TexteDoux
+            )
+            if (tapMsg != null) Text(tapMsg!!, fontSize = 12.sp, color = Ambre)
+        }
+
+        // Carte XP / récompenses
+        NeonCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Niveau $level", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Texte)
+                    Text("$xp XP", fontSize = 12.sp, color = TexteDoux)
+                }
+                Box(
+                    Modifier.clip(RoundedCornerShape(10.dp)).background(Violet.copy(alpha = 0.25f))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) { Text("🎁 Récompenses", fontSize = 12.sp, color = Lavande) }
+            }
+            XpBar(Rewards.levelProgress(xp))
+            Text(Rewards.perkLabel(level), fontSize = 12.sp, color = Menthe)
+        }
+
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatCard("Hashrate", ui.hashrate, Modifier.weight(1f))
+            val online = pool?.workers?.count { it.online } ?: 0
+            val total = pool?.workers?.size ?: 0
             StatCard(
                 "Appareils actifs",
                 if (pool != null && total > 0) "$online/$total" else if (ui.enabled) "1/1" else "0/1",
@@ -131,7 +230,7 @@ private fun AddDeviceCard(onClick: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text("Ajouter un appareil", fontWeight = FontWeight.Bold, color = Texte)
                 Text(
-                    "Installe Verumine sur un autre téléphone avec la même adresse VRSC : il apparaîtra tout seul dans Appareils.",
+                    "Installe Verumine sur un autre téléphone : il rejoindra automatiquement ton champ de minage.",
                     fontSize = 12.sp, color = TexteDoux
                 )
             }
@@ -142,10 +241,10 @@ private fun AddDeviceCard(onClick: () -> Unit) {
 
 // =============================================================== MINAGE
 @Composable
-fun MineTab(ui: MiningUi, pool: PoolStats?, history: List<HashPoint>, device: DeviceInfo, actions: Actions) {
+fun MineTab(ui: MiningUi, pool: PoolStats?, history: List<HashPoint>, device: DeviceInfo) {
     var range by remember { mutableStateOf(24) }
     TabColumn {
-        TabHeader("Minage", "Votre puissance, votre champ")
+        TabHeader("Minage", "Pleine puissance, en continu")
 
         NeonCard {
             Text("Statut du minage", fontSize = 13.sp, color = TexteDoux)
@@ -211,29 +310,15 @@ fun MineTab(ui: MiningUi, pool: PoolStats?, history: List<HashPoint>, device: De
                 if (ui.tempC > 0f) "${ui.tempC.toInt()} °C  ${if (hot) "Chaud" else "OK"}" else "—",
                 if (hot) Ambre else Menthe
             )
-            InfoRow("Serveur Luckpool", if (ui.pool != "—") ui.pool else "—")
-        }
-
-        NeonCard {
-            SectionTitle("Puissance de calcul")
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PowerMode.values().forEach { m ->
-                    Chip(m.label, m == device.mode, Modifier.weight(1f)) { actions.onModeChange(m) }
-                }
-            }
+            InfoRow("Serveur", if (ui.pool != "—") ui.pool else "—")
             Text(
-                when (device.mode) {
-                    PowerMode.ECO -> "La moitié des cœurs : le téléphone reste frais et la batterie souffre moins."
-                    PowerMode.BALANCED -> "Les trois quarts des cœurs : un bon compromis."
-                    PowerMode.MAX -> "Tous les cœurs. L'application ralentit toute seule si le téléphone chauffe trop."
-                },
+                "Le minage utilise automatiquement toute la puissance disponible et se réduit tout seul si le téléphone chauffe trop.",
                 fontSize = 12.sp, color = TexteDoux
             )
         }
     }
 }
 
-// Courbe du hashrate (historique fourni par Luckpool pour ton adresse)
 @Composable
 private fun HashChart(history: List<HashPoint>, hours: Int) {
     val last = history.lastOrNull()?.tsSec ?: 0L
@@ -262,16 +347,12 @@ private fun HashChart(history: List<HashPoint>, hours: Int) {
                 val x = (p.tsSec - minT).toFloat() / spanT.toFloat() * size.width
                 val y = size.height - (p.hashrate / maxV).toFloat() * size.height
                 if (i == 0) {
-                    line.moveTo(x, y)
-                    fill.moveTo(x, size.height)
-                    fill.lineTo(x, y)
+                    line.moveTo(x, y); fill.moveTo(x, size.height); fill.lineTo(x, y)
                 } else {
-                    line.lineTo(x, y)
-                    fill.lineTo(x, y)
+                    line.lineTo(x, y); fill.lineTo(x, y)
                 }
             }
-            fill.lineTo(size.width, size.height)
-            fill.close()
+            fill.lineTo(size.width, size.height); fill.close()
             drawPath(fill, brush = Brush.verticalGradient(listOf(Violet.copy(alpha = 0.40f), Color.Transparent)))
             drawPath(line, color = Neon, style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
@@ -281,176 +362,238 @@ private fun HashChart(history: List<HashPoint>, hours: Int) {
 
 // =============================================================== WALLET
 @Composable
-fun WalletTab(pool: PoolStats?, device: DeviceInfo, actions: Actions, onEdit: () -> Unit) {
-    val clipboard = LocalClipboardManager.current
+fun WalletTab(pool: PoolStats?, device: DeviceInfo, actions: Actions) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // Solde disponible : pour l'instant le solde réel renvoyé par le pool.
+    // À remplacer par le solde attribué à CET utilisateur quand le mécanisme
+    // d'attribution des gains sera en place.
+    val available = pool?.balance ?: Prefs.availableVrsc(ctx)
+
+    var method by remember { mutableStateOf(PayoutMethod.MOBILE_MONEY) }
+    var country by remember {
+        mutableStateOf(Catalog.country(Prefs.lastCountry(ctx)) ?: Catalog.momoCountries.firstOrNull())
+    }
+    var crypto by remember { mutableStateOf<Crypto?>(Cryptos.of("VRSC")) }
+    var address by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var first by remember { mutableStateOf("") }
+    var last by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var amountText by remember { mutableStateOf("") }
+    var inVrsc by remember { mutableStateOf(true) }
+    var picker by remember { mutableStateOf("") }   // "", "country", "crypto"
+    var busy by remember { mutableStateOf(false) }
+    var resultMsg by remember { mutableStateOf<String?>(null) }
+    var resultOk by remember { mutableStateOf(false) }
+    var ratesReady by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) { Rates.refresh() }
+        ratesReady = true
+    }
+
+    val curCode = if (method == PayoutMethod.MOBILE_MONEY) (country?.currency ?: "USD") else "USD"
+    val amt = amountText.replace(",", ".").toDoubleOrNull() ?: 0.0
+    val amountVrsc = if (inVrsc) amt else Rates.currencyAmountToVrsc(amt, curCode)
+    val amountCur = if (inVrsc) Rates.vrscAmountToCurrency(amt, curCode) else amt
+    val feePct = Rewards.effectiveFeePercent(ctx)
+    val discount = Rewards.feeDiscountPercent(ctx)
+    val netVrsc = (amountVrsc * (1.0 - feePct / 100.0)).coerceAtLeast(0.0)
+
     TabColumn {
-        TabHeader("Wallet", "Vos récompenses, votre liberté")
+        TabHeader("Wallet", "Retire tes gains, partout dans le monde")
 
         NeonCard {
-            Text("Solde en attente", fontSize = 13.sp, color = TexteDoux)
-            Text(
-                if (pool != null) "${fmtVrsc(pool.balance)} VRSC" else "—",
-                fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Texte
-            )
-            if (pool != null) {
-                InfoRow("En maturation", "${fmtVrsc(pool.immature)} VRSC")
-                InfoRow("Déjà payé", "${fmtVrsc(pool.paid)} VRSC", Menthe)
-            } else {
-                Text(
-                    "Données Luckpool indisponibles pour le moment (internet ou adresse sans activité).",
-                    fontSize = 12.sp, color = Ambre
-                )
-            }
+            Text("Solde disponible", fontSize = 13.sp, color = TexteDoux)
+            Text("${fmtVrsc(available)} VRSC", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Texte)
+            if (ratesReady) Text("≈ ${fmtMoney(Rates.vrscAmountToCurrency(available, curCode))} $curCode", fontSize = 12.sp, color = Menthe)
+            if (pool == null) Text("Connexion au réseau en cours…", fontSize = 12.sp, color = Ambre)
         }
 
+        // Choix du moyen de retrait
         NeonCard {
-            SectionTitle("Adresse de réception")
-            Text(
-                if (Config.isUsableWallet(device.wallet)) device.wallet else "Aucune adresse enregistrée",
-                fontFamily = FontFamily.Monospace, fontSize = 13.sp, color = Lavande
-            )
+            SectionTitle("Demander un retrait")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { clipboard.setText(AnnotatedString(device.wallet)) },
-                    enabled = Config.isUsableWallet(device.wallet),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(VIcons.Copy, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Copier")
+                Chip("Mobile Money", method == PayoutMethod.MOBILE_MONEY, Modifier.weight(1f)) {
+                    method = PayoutMethod.MOBILE_MONEY; resultMsg = null
                 }
-                OutlinedButton(onClick = onEdit, shape = RoundedCornerShape(12.dp)) { Text("Modifier") }
+                Chip("Crypto", method == PayoutMethod.CRYPTO, Modifier.weight(1f)) {
+                    method = PayoutMethod.CRYPTO; resultMsg = null
+                }
             }
+
+            if (method == PayoutMethod.MOBILE_MONEY) {
+                FieldRow("Pays", country?.let { "${it.flag}  ${it.name}" } ?: "Choisir un pays") { picker = "country" }
+                FormField(phone, { phone = it }, "Numéro ${country?.let { "(+${it.dial})" } ?: ""}", KeyboardType.Phone)
+            } else {
+                FieldRow("Cryptomonnaie", crypto?.let { "${it.ticker} — ${it.name}" } ?: "Choisir") { picker = "crypto" }
+                FormField(address, { address = it }, "Adresse de réception ${crypto?.network?.let { "($it)" } ?: ""}")
+                FieldRow("Pays", country?.let { "${it.flag}  ${it.name}" } ?: "Choisir un pays") { picker = "country2" }
+            }
+
+            // Montant + bascule VRSC / devise
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Chip("En VRSC", inVrsc, Modifier.weight(1f)) { inVrsc = true }
+                Chip("En $curCode", !inVrsc, Modifier.weight(1f)) { inVrsc = false }
+            }
+            FormField(amountText, { amountText = it }, "Montant (${if (inVrsc) "VRSC" else curCode})", KeyboardType.Decimal)
+
+            // Conversion affichée
+            if (amt > 0.0 && ratesReady) {
+                InfoRow("Équivalent", if (inVrsc) "${fmtMoney(amountCur)} $curCode" else "${fmtVrsc(amountVrsc)} VRSC")
+            }
+
+            FormField(first, { first = it }, "Prénom")
+            FormField(last, { last = it }, "Nom")
+            FormField(email, { email = it }, "Adresse e-mail", KeyboardType.Email)
+
+            // Récapitulatif des frais
+            InfoRow("Frais de l'administrateur", "${fmtPct(Config.ADMIN_FEE_PERCENT)}")
+            if (discount > 0.0) InfoRow("Réduction fidélité (niveau)", "− ${fmtPct(discount)}", Menthe)
+            InfoRow("Frais appliqués", fmtPct(feePct))
+            InfoRow("Tu reçois (net)", "${fmtVrsc(netVrsc)} VRSC", Menthe)
+
+            resultMsg?.let { Text(it, fontSize = 13.sp, color = if (resultOk) Menthe else Corail) }
+
+            Button(
+                onClick = {
+                    resultMsg = null
+                    val req = WithdrawRequest(
+                        method = method,
+                        amountVrsc = amountVrsc,
+                        feePercent = feePct,
+                        netVrsc = netVrsc,
+                        countryCode = country?.code ?: "",
+                        countryName = country?.name ?: "",
+                        phone = phone,
+                        currency = curCode,
+                        amountCurrency = amountCur,
+                        crypto = crypto?.ticker ?: "",
+                        cryptoAddress = address,
+                        firstName = first,
+                        lastName = last,
+                        email = email,
+                        worker = DeviceIdentity.workerName(ctx)
+                    )
+                    val err = Withdraw.validate(req, available)
+                    if (err != null) { resultMsg = err; resultOk = false; return@Button }
+                    busy = true
+                    scope.launch {
+                        val r = withContext(Dispatchers.IO) { Withdraw.send(req) }
+                        busy = false
+                        when (r) {
+                            is Withdraw.Result.Ok -> {
+                                Withdraw.add(ctx, req)
+                                country?.let { Prefs.setLastCountry(ctx, it.code) }
+                                resultOk = true
+                                resultMsg = "Demande envoyée à l'administrateur. Statut : En attente. Tu seras payé sous peu."
+                                amountText = ""
+                            }
+                            is Withdraw.Result.Error -> { resultOk = false; resultMsg = r.message }
+                        }
+                    }
+                },
+                enabled = !busy,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (busy) "Envoi en cours…" else "Envoyer la demande de retrait") }
         }
 
+        // Explication du nouveau système
         NeonCard {
             SectionTitle("Comment sont versés les gains ?")
             Text(
-                "Tous tes appareils minent vers cette même adresse. Luckpool regroupe leurs gains et les verse " +
-                    "directement sur ton portefeuille Verus, selon ses propres règles de paiement.",
+                "Tous les appareils minent vers le compte de Verumine. Pour toucher tes gains, tu fais une demande de " +
+                    "retrait ici : par Mobile Money (dans les pays pris en charge) ou en crypto (partout dans le monde, " +
+                    "avec ta propre adresse de réception).",
                 fontSize = 13.sp, color = TexteDoux
             )
-            OutlinedButton(
-                onClick = { actions.onOpenUrl("https://luckpool.net/verus/stats.html") },
-                shape = RoundedCornerShape(12.dp)
-            ) { Text("Ouvrir Luckpool") }
+            Text(
+                "La demande est transmise à l'administrateur, qui prélève ${fmtPct(Config.ADMIN_FEE_PERCENT)} de frais et " +
+                    "t'envoie le reste par le moyen que tu as choisi. Dès qu'il valide, le statut change ici.",
+                fontSize = 13.sp, color = TexteDoux
+            )
+            Text(
+                "Astuce : plus ton niveau est élevé, plus tes frais baissent (jusqu'à −15 %). Tape chaque jour pour gagner de l'XP.",
+                fontSize = 12.sp, color = Lavande
+            )
         }
+
+        // Historique
+        val hist = remember(resultMsg) { Withdraw.history(ctx) }
+        if (hist.isNotEmpty()) {
+            NeonCard {
+                SectionTitle("Mes demandes")
+                hist.forEach { w ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "${fmtVrsc(w.amountVrsc)} VRSC — ${if (w.method == PayoutMethod.CRYPTO) w.crypto else "Mobile Money"}",
+                                color = Texte, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                if (w.method == PayoutMethod.CRYPTO) w.cryptoAddress.take(18) + "…"
+                                else "${w.countryName} · ${w.phone}",
+                                color = TexteDoux, fontSize = 11.sp
+                            )
+                        }
+                        Text(w.status, fontSize = 12.sp, color = if (w.status.contains("payé", true)) Menthe else Ambre)
+                    }
+                }
+            }
+        }
+    }
+
+    when {
+        picker == "country" -> PickerDialog(
+            "Choisis ton pays", Catalog.momoCountries, { "${it.flag}  ${it.name} (+${it.dial})" },
+            onPick = { country = it; picker = "" }, onDismiss = { picker = "" }
+        )
+        picker == "country2" -> PickerDialog(
+            "Choisis ton pays", Catalog.countries, { "${it.flag}  ${it.name}" },
+            onPick = { country = it; picker = "" }, onDismiss = { picker = "" }
+        )
+        picker == "crypto" -> PickerDialog(
+            "Choisis une cryptomonnaie", Cryptos.list, { "${it.ticker} — ${it.name} (${it.network})" },
+            onPick = { crypto = it; picker = "" }, onDismiss = { picker = "" }
+        )
     }
 }
 
 // =============================================================== APPAREILS
 @Composable
-fun DevicesTab(ui: MiningUi, pool: PoolStats?, device: DeviceInfo, actions: Actions) {
-    val myName = device.customName.ifBlank { device.autoName }
-    val workers = pool?.workers ?: emptyList()
-    val mine = workers.firstOrNull { it.name.equals(myName, ignoreCase = true) }
-    val others = workers.filter { it !== mine }
-    val online = workers.count { it.online }
-
+fun DevicesTab() {
     TabColumn {
-        TabHeader("Mes appareils", "Chaque téléphone est identifié sur Luckpool")
+        TabHeader("Mes appareils", "Bientôt disponible")
 
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatCard("Puissance totale", if (pool != null) fmtHash(pool.hashrate) else "—", Modifier.weight(1f))
-            StatCard(
-                "Appareils actifs",
-                if (workers.isNotEmpty()) "$online/${workers.size}" else if (ui.enabled) "1/1" else "0/1",
-                Modifier.weight(1f)
-            )
-        }
+        Box(Modifier.fillMaxWidth().height(60.dp))
 
-        // Cet appareil en premier
-        val localOnline = ui.enabled && ui.tone == Tone.OK
-        DeviceCard(
-            name = myName,
-            isThis = true,
-            online = mine?.online ?: localOnline,
-            hashrate = if (localOnline) ui.hashrate else fmtHash(mine?.hashrate ?: 0.0),
-            detail = buildString {
-                append("Processeur ${device.abi}, ${device.cores} cœurs")
-                if (mine != null) append("\nParts : ${mine.shares.toLong()}  Serveur : ${mine.server}")
-            },
-            switchChecked = ui.enabled,
-            onSwitch = actions.onToggle
-        )
-
-        others.forEach { w ->
-            DeviceCard(
-                name = w.name,
-                isThis = false,
-                online = w.online,
-                hashrate = fmtHash(w.hashrate),
-                detail = "Parts : ${w.shares.toLong()}  Serveur : ${w.server}",
-                switchChecked = false,
-                onSwitch = null
-            )
-        }
-
-        if (pool != null && workers.isEmpty()) {
+        NeonCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(44.dp).clip(CircleShape).background(Violet.copy(alpha = 0.25f)),
+                    contentAlignment = Alignment.Center
+                ) { Icon(VIcons.Phone, null, tint = Lavande, modifier = Modifier.size(22.dp)) }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Gestion des appareils", fontWeight = FontWeight.Bold, color = Texte)
+                    Text("Aucun appareil pour l'instant", fontSize = 12.sp, color = TexteDoux)
+                }
+            }
             Text(
-                "Luckpool n'a pas encore reçu de part de cet appareil. Patiente quelques minutes après le démarrage du minage.",
+                "Cette page affichera bientôt la liste de tous tes téléphones qui minent, leur état et leur puissance. " +
+                    "Cette fonctionnalité est en préparation.",
                 fontSize = 13.sp, color = TexteDoux
             )
         }
-
-        NeonCard {
-            SectionTitle("Ajouter un appareil")
-            Text("1. Installe Verumine sur un autre téléphone.", fontSize = 13.sp, color = TexteDoux)
-            Text("2. Ouvre l'application : elle utilise la même adresse VRSC et un nom différent.", fontSize = 13.sp, color = TexteDoux)
-            Text("3. Après quelques minutes, il apparaît ici et dans le tableau de bord de Luckpool.", fontSize = 13.sp, color = TexteDoux)
-        }
-    }
-}
-
-@Composable
-private fun DeviceCard(
-    name: String,
-    isThis: Boolean,
-    online: Boolean,
-    hashrate: String,
-    detail: String,
-    switchChecked: Boolean,
-    onSwitch: (() -> Unit)?
-) {
-    NeonCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(44.dp).clip(CircleShape).background(Violet.copy(alpha = 0.25f)),
-                contentAlignment = Alignment.Center
-            ) { Icon(VIcons.Phone, null, tint = Lavande, modifier = Modifier.size(22.dp)) }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(name, fontWeight = FontWeight.Bold, color = Texte, maxLines = 1)
-                if (isThis) {
-                    Text(
-                        "Cet appareil", fontSize = 10.sp, color = Lavande, maxLines = 1, softWrap = false,
-                        modifier = Modifier
-                            .padding(top = 2.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Violet.copy(alpha = 0.25f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                    Dot(if (online) Menthe else Corail, 7)
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        if (online) "En ligne  $hashrate" else "Hors ligne",
-                        fontSize = 12.sp, color = if (online) Menthe else Corail
-                    )
-                }
-            }
-            if (onSwitch != null) {
-                Switch(checked = switchChecked, onCheckedChange = { onSwitch() })
-            }
-        }
-        Text(detail, fontSize = 12.sp, color = TexteDoux)
     }
 }
 
 // =============================================================== PLUS
 @Composable
-fun MoreTab(ui: MiningUi, device: DeviceInfo, actions: Actions, onEdit: () -> Unit) {
+fun MoreTab(ui: MiningUi, device: DeviceInfo, actions: Actions) {
     var showLogs by remember { mutableStateOf(false) }
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -462,31 +605,19 @@ fun MoreTab(ui: MiningUi, device: DeviceInfo, actions: Actions, onEdit: () -> Un
 
         NeonCard {
             SectionTitle("Pour que le minage ne s'arrête jamais")
-            CheckRow(
-                "Notifications", "Android les exige pour travailler en arrière-plan.",
-                device.checks.notif, "Autoriser", actions.onAskNotif
-            )
-            CheckRow(
-                "Batterie sans restriction", "Empêche Android d'endormir le minage.",
-                device.checks.battery, "Autoriser", actions.onAskBattery
-            )
-            CheckRow(
-                "Protection contre la désinstallation", "Active l'administrateur de l'appareil.",
-                device.checks.admin, "Activer", actions.onAskAdmin
-            )
-            CheckRow(
-                "Démarrage automatique",
-                "Sur Tecno, Infinix, Xiaomi, Samsung : ouvre Batterie ou Démarrage automatique de l'application.",
-                false, "Ouvrir les réglages", actions.onOpenAppSettings
-            )
+            CheckRow("Notifications", "Android les exige pour travailler en arrière-plan.", device.checks.notif, "Autoriser", actions.onAskNotif)
+            CheckRow("Batterie sans restriction", "Empêche Android d'endormir le minage.", device.checks.battery, "Autoriser", actions.onAskBattery)
+            CheckRow("Protection contre la désinstallation", "Active l'administrateur de l'appareil.", device.checks.admin, "Activer", actions.onAskAdmin)
+            CheckRow("Démarrage automatique", "Sur Tecno, Infinix, Xiaomi, Samsung : ouvre Batterie ou Démarrage automatique.", false, "Ouvrir les réglages", actions.onOpenAppSettings)
         }
 
         NeonCard {
             SectionTitle("Cet appareil")
-            InfoRow("Nom sur Luckpool", device.customName.ifBlank { device.autoName })
-            InfoRow("Adresse VRSC", if (Config.isUsableWallet(device.wallet)) maskWallet(device.wallet) else "À renseigner")
             InfoRow("Processeur", "${device.abi}, ${device.cores} cœurs")
-            OutlinedButton(onClick = onEdit, shape = RoundedCornerShape(12.dp)) { Text("Modifier l'adresse et le nom") }
+            Text(
+                "Le nom de cet appareil et l'adresse de récompense sont gérés automatiquement par l'application.",
+                fontSize = 12.sp, color = TexteDoux
+            )
         }
 
         NeonCard {
@@ -504,10 +635,7 @@ fun MoreTab(ui: MiningUi, device: DeviceInfo, actions: Actions, onEdit: () -> Un
 
         NeonCard {
             SectionTitle("Diagnostic")
-            Text(
-                "À utiliser si le minage ne démarre pas : vérifie le processeur et teste le programme de minage.",
-                fontSize = 13.sp, color = TexteDoux
-            )
+            Text("À utiliser si le minage ne démarre pas : vérifie le processeur et teste le programme de minage.", fontSize = 13.sp, color = TexteDoux)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     onClick = {
@@ -517,26 +645,20 @@ fun MoreTab(ui: MiningUi, device: DeviceInfo, actions: Actions, onEdit: () -> Un
                             busy = false
                         }
                     },
-                    enabled = !busy,
-                    shape = RoundedCornerShape(12.dp)
+                    enabled = !busy, shape = RoundedCornerShape(12.dp)
                 ) { Text(if (busy) "Test en cours…" else "Lancer le diagnostic") }
                 if (report.isNotEmpty()) {
-                    OutlinedButton(
-                        onClick = { clipboard.setText(AnnotatedString(report)) },
-                        shape = RoundedCornerShape(12.dp)
-                    ) { Text("Copier") }
+                    OutlinedButton(onClick = { clipboard.setText(AnnotatedString(report)) }, shape = RoundedCornerShape(12.dp)) { Text("Copier") }
                 }
             }
-            if (report.isNotEmpty()) {
-                Text(report, fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = TexteDoux)
-            }
+            if (report.isNotEmpty()) Text(report, fontFamily = FontFamily.Monospace, fontSize = 11.sp, color = TexteDoux)
         }
 
         NeonCard {
             SectionTitle("À propos")
             Text(
-                "Verumine : un champ de minage Verus (VRSC). Tous tes appareils minent vers la même adresse " +
-                    "et sont reconnus par leur nom sur Luckpool.",
+                "Verumine : un champ de minage Verus (VRSC). Tous tes appareils minent ensemble et tu retires tes gains " +
+                    "depuis la page Wallet.",
                 fontSize = 13.sp, color = TexteDoux
             )
             Text("Version ${Diagnostics.appVersion(ctx)}", fontSize = 12.sp, color = Brume)
@@ -544,3 +666,5 @@ fun MoreTab(ui: MiningUi, device: DeviceInfo, actions: Actions, onEdit: () -> Un
         Spacer(Modifier.height(8.dp))
     }
 }
+
+private fun fmtPct(v: Double): String = "${"%.0f".format(java.util.Locale.US, v)} %"

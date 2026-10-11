@@ -1,9 +1,12 @@
 package com.monchamp.verusfarm.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalButton
@@ -35,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -42,17 +47,17 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.monchamp.verusfarm.Config
-import com.monchamp.verusfarm.MiningUi
 import com.monchamp.verusfarm.R
 import com.monchamp.verusfarm.Tone
 
@@ -69,7 +74,6 @@ fun TabColumn(content: @Composable ColumnScope.() -> Unit) {
     )
 }
 
-// Carte à bord néon
 @Composable
 fun NeonCard(
     modifier: Modifier = Modifier,
@@ -96,11 +100,9 @@ fun NeonCard(
 @Composable
 fun SectionTitle(text: String, modifier: Modifier = Modifier) {
     Text(
-        text,
-        modifier = modifier,
+        text, modifier = modifier,
         style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
-        color = Texte
+        fontWeight = FontWeight.Bold, color = Texte
     )
 }
 
@@ -150,7 +152,6 @@ fun StatusPill(tone: Tone) {
     }
 }
 
-// Le logo V de Verumine, fondu dans le fond sombre (mode « Screen » : le noir devient transparent)
 @Composable
 fun LogoMark(modifier: Modifier = Modifier) {
     val img = ImageBitmap.imageResource(R.drawable.logo_v)
@@ -168,16 +169,12 @@ fun BrandHeader(tone: Tone) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         LogoMark(Modifier.height(34.dp))
         Spacer(Modifier.width(8.dp))
-        Text(
-            "Verumine",
-            modifier = Modifier.weight(1f),
-            fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Texte
-        )
+        Text("Verumine", modifier = Modifier.weight(1f), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Texte)
         StatusPill(tone)
     }
 }
 
-// Anneau : un segment par cœur du processeur (allumé = ce cœur mine)
+// Anneau : un segment par cœur du processeur (toujours tous actifs = pleine puissance)
 @Composable
 fun CoreRing(total: Int, active: Int, color: Color, track: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
@@ -193,24 +190,30 @@ fun CoreRing(total: Int, active: Int, color: Color, track: Color, modifier: Modi
                 startAngle = -90f + i * step + gap / 2f,
                 sweepAngle = step - gap,
                 useCenter = false,
-                topLeft = topLeft,
-                size = arcSize,
+                topLeft = topLeft, size = arcSize,
                 style = Stroke(width = stroke, cap = StrokeCap.Round)
             )
         }
     }
 }
 
-// Gros bouton rond lumineux : démarre ou arrête le minage
+// Bouton de tapotage central : chaque appui déclenche onTap (si autorisé).
+// L'appui long ne fait rien (clickable simple). L'anti-abus est géré par l'appelant.
 @Composable
-fun TapButton(ui: MiningUi, cores: Int, onClick: () -> Unit) {
-    val running = ui.enabled
+fun TapButton(
+    cores: Int,
+    activeCores: Int,
+    enabled: Boolean,
+    centerTop: String,
+    centerBottom: String,
+    onTap: () -> Unit
+) {
     Box(Modifier.size(250.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val r = size.minDimension / 2f
             drawCircle(
                 brush = Brush.radialGradient(
-                    listOf(Violet.copy(alpha = if (running) 0.50f else 0.22f), Color.Transparent),
+                    listOf(Violet.copy(alpha = if (enabled) 0.50f else 0.18f), Color.Transparent),
                     center = center, radius = r
                 ),
                 radius = r, center = center
@@ -218,7 +221,7 @@ fun TapButton(ui: MiningUi, cores: Int, onClick: () -> Unit) {
         }
         CoreRing(
             total = cores,
-            active = if (running) ui.threads else 0,
+            active = activeCores,
             color = Neon,
             track = Bord.copy(alpha = 0.7f),
             modifier = Modifier.size(212.dp)
@@ -227,35 +230,95 @@ fun TapButton(ui: MiningUi, cores: Int, onClick: () -> Unit) {
             modifier = Modifier
                 .size(170.dp)
                 .clip(CircleShape)
-                .background(Brush.radialGradient(listOf(Color(0xFF4C1D95), Color(0xFF1E0B5C), Color(0xFF12073A))))
+                .background(
+                    Brush.radialGradient(
+                        if (enabled) listOf(Color(0xFF4C1D95), Color(0xFF1E0B5C), Color(0xFF12073A))
+                        else listOf(Color(0xFF2A1A52), Color(0xFF160A3C), Color(0xFF0E0730))
+                    )
+                )
                 .border(2.dp, Brush.verticalGradient(listOf(Neon, Violet.copy(alpha = 0.35f))), CircleShape)
-                .clickable(onClick = onClick),
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    enabled = enabled
+                ) { onTap() },
             contentAlignment = Alignment.Center
         ) {
-            if (running) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(ui.hashrate, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Texte)
-                    Text(
-                        if (ui.tone == Tone.OK) "Minage en cours" else "En attente",
-                        fontSize = 12.sp, color = if (ui.tone == Tone.OK) Menthe else Ambre
-                    )
-                    Text("Appuyer pour arrêter", fontSize = 10.sp, color = TexteDoux)
-                }
-            } else {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(VIcons.Bolt, contentDescription = null, tint = Lavande, modifier = Modifier.size(38.dp))
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Appuyer pour miner",
-                        fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Texte, textAlign = TextAlign.Center
-                    )
-                }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(VIcons.Bolt, contentDescription = null, tint = if (enabled) Lavande else Brume, modifier = Modifier.size(34.dp))
+                Spacer(Modifier.height(4.dp))
+                Text(centerTop, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Texte, textAlign = TextAlign.Center)
+                Text(centerBottom, fontSize = 11.sp, color = if (enabled) Menthe else Ambre, textAlign = TextAlign.Center)
             }
         }
     }
 }
 
-// Petit bouton à choisir (puissance, durée du graphique)
+// Un « +2 » qui monte et s'efface. onEnd est appelé à la fin pour le retirer.
+@Composable
+fun FloatingPlus(onEnd: () -> Unit) {
+    val t = remember { Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        t.animateTo(1f, tween(900))
+        onEnd()
+    }
+    Text(
+        "+2 XP",
+        fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Menthe,
+        modifier = Modifier
+            .graphicsLayer {
+                translationY = -150f * t.value
+                alpha = 1f - t.value
+            }
+    )
+}
+
+// Barre d'énergie horizontale.
+@Composable
+fun EnergyBar(percent: Float, modifier: Modifier = Modifier) {
+    val p = (percent / 100f).coerceIn(0f, 1f)
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(14.dp)
+            .clip(RoundedCornerShape(50))
+            .background(CarteHaute)
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth(p)
+                .height(14.dp)
+                .clip(RoundedCornerShape(50))
+                .background(
+                    Brush.horizontalGradient(
+                        if (p > 0.15f) listOf(Violet, Neon) else listOf(Ambre, Corail)
+                    )
+                )
+        )
+    }
+}
+
+// Barre de progression XP fine.
+@Composable
+fun XpBar(progress: Float, modifier: Modifier = Modifier) {
+    val p = progress.coerceIn(0f, 1f)
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(8.dp)
+            .clip(RoundedCornerShape(50))
+            .background(CarteHaute)
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth(p)
+                .height(8.dp)
+                .clip(RoundedCornerShape(50))
+                .background(Brush.horizontalGradient(listOf(Menthe, Neon)))
+        )
+    }
+}
+
 @Composable
 fun Chip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
@@ -286,12 +349,96 @@ fun CheckRow(title: String, detail: String, done: Boolean, action: String, onCli
             Text(detail, fontSize = 12.sp, color = TexteDoux)
         }
         Spacer(Modifier.width(12.dp))
-        if (done) {
-            Text("Activé", color = Menthe, fontWeight = FontWeight.SemiBold)
-        } else {
-            FilledTonalButton(onClick = onClick, shape = RoundedCornerShape(12.dp)) { Text(action) }
+        if (done) Text("Activé", color = Menthe, fontWeight = FontWeight.SemiBold)
+        else FilledTonalButton(onClick = onClick, shape = RoundedCornerShape(12.dp)) { Text(action) }
+    }
+}
+
+// Champ sélectionnable : ouvre une liste (pays, devise, crypto).
+@Composable
+fun FieldRow(label: String, value: String, onClick: () -> Unit) {
+    Column {
+        Text(label, fontSize = 12.sp, color = TexteDoux)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(CarteHaute)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(value, color = Texte, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Icon(VIcons.Chevron, null, tint = Lavande)
         }
     }
+}
+
+// Dialogue de choix dans une liste, avec recherche.
+@Composable
+fun <T> PickerDialog(
+    title: String,
+    items: List<T>,
+    labelOf: (T) -> String,
+    onPick: (T) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(query) {
+        if (query.isBlank()) items else items.filter { labelOf(it).contains(query.trim(), ignoreCase = true) }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = CarteHaute,
+        title = { Text(title, color = Texte) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = query, onValueChange = { query = it },
+                    label = { Text("Rechercher") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(320.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    filtered.take(260).forEach { item ->
+                        Text(
+                            labelOf(item),
+                            color = Texte, fontSize = 15.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onPick(item) }
+                                .padding(vertical = 12.dp)
+                        )
+                    }
+                    if (filtered.isEmpty()) Text("Aucun résultat", color = TexteDoux, fontSize = 13.sp)
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Fermer") } }
+    )
+}
+
+// Champ texte stylé pour les formulaires.
+@Composable
+fun FormField(
+    value: String,
+    onChange: (String) -> Unit,
+    label: String,
+    keyboard: KeyboardType = KeyboardType.Text,
+    singleLine: Boolean = true
+) {
+    OutlinedTextField(
+        value = value, onValueChange = onChange,
+        label = { Text(label) }, singleLine = singleLine,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboard),
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 // Barre de navigation du bas
@@ -330,48 +477,4 @@ fun BottomBar(selected: Int, onSelect: (Int) -> Unit) {
             }
         }
     }
-}
-
-@Composable
-fun EditDialog(
-    wallet: String,
-    name: String,
-    autoName: String,
-    onDismiss: () -> Unit,
-    onSave: (String, String) -> Unit
-) {
-    var w by remember { mutableStateOf(if (Config.isPlaceholder(wallet)) "" else wallet) }
-    var n by remember { mutableStateOf(name) }
-    val valid = Config.isUsableWallet(w.trim())
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = CarteHaute,
-        title = { Text("Identité de cet appareil", color = Texte) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = w,
-                    onValueChange = { w = it.trim() },
-                    label = { Text("Adresse VRSC") },
-                    singleLine = true,
-                    isError = w.isNotEmpty() && !valid,
-                    supportingText = {
-                        Text(if (w.isEmpty() || valid) "Elle commence par la lettre R." else "Adresse invalide : vérifie qu'elle est complète.")
-                    }
-                )
-                OutlinedTextField(
-                    value = n,
-                    onValueChange = { n = it.filter { c -> c.isLetterOrDigit() }.lowercase().take(12) },
-                    label = { Text("Nom de l'appareil (facultatif)") },
-                    singleLine = true,
-                    supportingText = { Text("Lettres et chiffres, 12 au plus. Vide = nom automatique : $autoName") }
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(w.trim(), n) }, enabled = valid) { Text("Enregistrer") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Annuler") } }
-    )
 }

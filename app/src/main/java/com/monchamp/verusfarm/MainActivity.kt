@@ -39,8 +39,6 @@ class MainActivity : ComponentActivity() {
 
     private var checks by mutableStateOf(Checks())
     private var wallet by mutableStateOf("")
-    private var customName by mutableStateOf("")
-    private var mode by mutableStateOf(PowerMode.MAX)
 
     private val notifLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { refreshChecks() }
@@ -53,8 +51,7 @@ class MainActivity : ComponentActivity() {
         )
 
         wallet = Prefs.wallet(this)
-        customName = Prefs.customName(this)
-        mode = Prefs.mode(this)
+        RewardNotifier.ensureChannel(this)
 
         // Toute première ouverture : le minage démarre tout seul
         if (Prefs.isFirstRun(this)) {
@@ -66,6 +63,7 @@ class MainActivity : ComponentActivity() {
         MiningState.set { it.copy(enabled = Prefs.isEnabled(this), miningMs = Prefs.miningMs(this)) }
         refreshChecks()
         NetworkWake.register(this)
+        RewardNotifier.scheduleEnergyFull(this)
         if (Prefs.isEnabled(this)) startMining()
 
         val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
@@ -83,22 +81,11 @@ class MainActivity : ComponentActivity() {
                     pool = pool,
                     history = history,
                     device = DeviceInfo(
-                        wallet = wallet,
-                        customName = customName,
-                        autoName = DeviceIdentity.autoName(this@MainActivity),
-                        mode = mode,
                         checks = checks,
                         abi = DeviceIdentity.abi(),
                         cores = cores
                     ),
                     actions = Actions(
-                        onToggle = { if (ui.enabled) stopMining() else startMining() },
-                        onModeChange = { m ->
-                            Prefs.setMode(this@MainActivity, m)
-                            mode = m
-                            if (Prefs.isEnabled(this@MainActivity)) startMining()
-                        },
-                        onSaveIdentity = { w, n -> saveIdentity(w, n) },
                         onAskNotif = { askNotificationPermission() },
                         onAskBattery = { askBatteryExemption() },
                         onAskAdmin = { askAdmin() },
@@ -114,50 +101,26 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         refreshChecks()
         wallet = Prefs.wallet(this)
+        RewardNotifier.scheduleEnergyFull(this)
     }
 
     // ---------- Minage ----------
-    private fun startMining(reload: Boolean = false) {
+    private fun startMining() {
         if (!Config.isUsableWallet(Prefs.wallet(this))) {
-            Prefs.setEnabled(this, false)
             MiningState.set {
-                it.copy(enabled = false, status = "Entre ton adresse VRSC pour commencer", tone = Tone.WARN)
+                it.copy(status = "Minage en préparation…", tone = Tone.WARN)
             }
             return
         }
         Prefs.setEnabled(this, true)
         MiningState.set { it.copy(enabled = true) }
         try {
-            val intent = Intent(this, MiningService::class.java)
-                .putExtra(MiningService.EXTRA_RELOAD, reload)
-            ContextCompat.startForegroundService(this, intent)
+            ContextCompat.startForegroundService(this, Intent(this, MiningService::class.java))
         } catch (e: Exception) {
             MiningState.set {
                 it.copy(status = "Impossible de démarrer le minage : ${e.message}", tone = Tone.ERROR)
             }
         }
-    }
-
-    private fun stopMining() {
-        Prefs.setEnabled(this, false)
-        MiningState.set {
-            it.copy(enabled = false, status = "Arrêté", tone = Tone.IDLE, hashrate = "—", threads = 0)
-        }
-        try {
-            startService(Intent(this, MiningService::class.java).setAction(MiningService.ACTION_STOP))
-        } catch (_: Exception) {
-        }
-    }
-
-    private fun saveIdentity(newWallet: String, newName: String) {
-        val wasMissing = !Config.isUsableWallet(Prefs.wallet(this))
-        Prefs.setWallet(this, newWallet)
-        Prefs.setCustomName(this, newName)
-        wallet = Prefs.wallet(this)
-        customName = Prefs.customName(this)
-        PoolState.stats.value = null
-        PoolState.history.value = emptyList()
-        if (Prefs.isEnabled(this) || wasMissing) startMining(reload = true)
     }
 
     // ---------- Protections ----------
@@ -199,10 +162,7 @@ class MainActivity : ComponentActivity() {
         try {
             val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
                 putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, ComponentName(this@MainActivity, AdminReceiver::class.java))
-                putExtra(
-                    DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                    "Empêche la désinstallation accidentelle de Verumine."
-                )
+                putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Empêche la désinstallation accidentelle de Verumine.")
             }
             startActivity(intent)
         } catch (_: Exception) {
@@ -211,9 +171,7 @@ class MainActivity : ComponentActivity() {
 
     private fun openAppSettings() {
         try {
-            startActivity(
-                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
-            )
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
         } catch (_: Exception) {
         }
     }

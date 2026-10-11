@@ -53,6 +53,11 @@
             android:name=".NetworkWakeReceiver"
             android:exported="false" />
 
+        <!-- Réveil pour les notifications de récompense (énergie pleine) -->
+        <receiver
+            android:name=".RewardReceiver"
+            android:exported="false" />
+
         <!-- Administrateur de l'appareil -->
         <receiver
             android:name=".AdminReceiver"
