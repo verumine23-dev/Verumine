@@ -32,6 +32,9 @@ fi
 OPT64="${OPT64:--march=armv8-a+crypto -mtune=cortex-a53}"
 OPT32="${OPT32:--march=armv8-a+crypto -mfpu=crypto-neon-fp-armv8 -mfloat-abi=softfp}"
 COMMON="-O3 -w -static -flax-vector-conversions -fno-strict-aliasing -fomit-frame-pointer -fno-stack-protector"
+# Android < 10 (API 26 ici) : le compilateur « émule » les variables par thread par défaut, et notre
+# variable alignée sur 64 octets ne finit alors pas dans le segment TLS. On force le vrai segment TLS.
+if [ -n "${ANDROID_NDK_HOME:-}" ]; then COMMON="$COMMON -fno-emulated-tls"; fi
 
 # --- En-tête de compatibilité : exactement celui de l'APK ---
 ABI=armeabi-v7a ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-/inexistant}" bash "$ROOT/miner/build-android.sh" header >/dev/null 2>&1 || true
