@@ -30,8 +30,17 @@ object Prefs {
     fun setCustomName(ctx: Context, value: String) =
         sp(ctx).edit().putString("worker_name", value.filter { it.isLetterOrDigit() }.lowercase().take(12)).apply()
 
-    // Le minage tourne toujours à pleine puissance (plus de choix de mode).
-    fun mode(ctx: Context): PowerMode = PowerMode.MAX
+    // Puissance de calcul choisie par l'utilisateur sur la page Minage (Faible / Moyen / Max).
+    // Par défaut : Maximum (100 % de la puissance du téléphone).
+    fun mode(ctx: Context): PowerMode =
+        when (sp(ctx).getString("power_mode", "MAX")) {
+            "ECO" -> PowerMode.ECO
+            "BALANCED" -> PowerMode.BALANCED
+            else -> PowerMode.MAX
+        }
+
+    fun setMode(ctx: Context, value: PowerMode) =
+        sp(ctx).edit().putString("power_mode", value.name).apply()
 
     // Quel programme de minage fonctionne sur ce téléphone (0 = optimisé, 1 = secours)
     fun engineIndex(ctx: Context): Int = sp(ctx).getInt("engine_idx", 0)
