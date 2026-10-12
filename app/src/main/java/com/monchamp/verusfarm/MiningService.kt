@@ -64,7 +64,9 @@ class MiningService : Service() {
     private var startNotified = false   // notification « minage démarré » déjà envoyée pour cette session
     private var runningThreads = 0
     private var currentHost = ""
-    private var accepted = 0
+    private var accepted = 0       // parts acceptées cumulées (affichage, toutes reconnexions)
+    private var acceptedBase = 0   // cumul des sessions de minage précédentes (avant la reconnexion en cours)
+    private var accRun = 0         // parts acceptées de la session de minage en cours (ce que ccminer affiche)
     private var rejected = 0
     private var lowDiffRejects = 0     // parts refusées par Luckpool pour « low difficulty share »
     private var guardSwitches = 0      // nombre de changements de programme dus aux parts refusées
@@ -145,8 +147,12 @@ class MiningService : Service() {
         NetworkWake.register(this)
 
         if (intent?.getBooleanExtra(EXTRA_RELOAD, false) == true) {
-            // Nouvelle adresse ou nouveau nom : on repart proprement
+            // Nouvelle adresse, nouveau nom ou changement de puissance : on repart proprement
+            // en conservant le total déjà acquis (sinon le compteur cumulé reculerait).
+            acceptedBase += accRun
+            accRun = 0
             miner.stop()
+            runningThreads = 0
             retryPending = false
             handler.removeCallbacks(retryRunnable)
         }
@@ -218,16 +224,36 @@ class MiningService : Service() {
                 runningThreads = threads
                 currentHost = host
                 hashed = false
-                MiningState.addLog("Nom sur le réseau : ${DeviceIdentity.workerName(this)}")
-                accepted = 0
+                // Nom envoyé à LuckPool pour distinguer ce téléphone (affiché sans dévoiler l'adresse).
+                MiningState.addLog("Nom de ce worker sur LuckPool : « ${DeviceIdentity.workerName(this)} »")
+                MiningState.addLog("Identifiant envoyé : ${DeviceIdentity.maskedPoolUser(this)}")
+                accRun = 0
                 rejected = 0
                 lowDiffRejects = 0
-                MiningState.set { it.copy(accepted = 0, rejected = 0, hashrate = "—") }
-                setStatus("Connexion au pool…", Tone.OK)
+                MiningState.set { it.copy(accepted = accepted, rejected = 0, hashrate = "—") }
+                setStatus("Connexion au pool ($host)…", Tone.OK)
             }
             MinerProcess.Result.NO_ENGINE -> engineMissing()
             MinerProcess.Result.ERROR -> handleFailure(-1)
         }
+    }
+
+    // Rafraîchissement périodique : toutes les REFRESH_EVERY parts acceptées, on coupe
+    // proprement la connexion à LuckPool et on relance aussitôt. Le compteur cumulé (accepted)
+    // est conservé ; seul le compteur de la session en cours (accRun) repart à zéro.
+    private fun refreshMiner() {
+        if (stopping) return
+        acceptedBase += accRun          // on garde le total acquis avant la coupure
+        accRun = 0
+        MiningState.addLog("Rafraîchissement du minage ($REFRESH_EVERY parts) : reconnexion à LuckPool…")
+        setStatus("Reconnexion à LuckPool…", Tone.OK)
+        miner.stop()                    // arrêt voulu : pas considéré comme un plantage
+        runningThreads = 0
+        retryPending = false
+        retryDelayMs = 5_000L
+        handler.removeCallbacks(retryRunnable)
+        // Petit délai pour laisser le processus se fermer, puis on relance via evaluate().
+        handler.postDelayed({ if (!stopping) evaluate() }, 1_500L)
     }
 
     // ---------- Ce que dit le mineur ----------
@@ -239,11 +265,16 @@ class MiningService : Service() {
         MiningState.addLog(line.take(160))
 
         acceptedRegex.find(line)?.let {
-            accepted = it.groupValues[1].toIntOrNull() ?: accepted
-            val total = it.groupValues[2].toIntOrNull() ?: accepted
-            rejected = (total - accepted).coerceAtLeast(0)
+            val run = it.groupValues[1].toIntOrNull() ?: accRun
+            val total = it.groupValues[2].toIntOrNull() ?: run
+            accRun = run
+            accepted = acceptedBase + run          // cumul réel, même après une reconnexion
+            rejected = (total - run).coerceAtLeast(0)
             // Presque toutes les parts acceptées : le calcul est fiable, on oublie les changements passés
-            if (total >= 10 && accepted * 100 / total >= 60) guardSwitches = 0
+            if (total >= 10 && run * 100 / total >= 60) guardSwitches = 0
+            // Toutes les 100 parts acceptées, on se déconnecte et se reconnecte à LuckPool
+            // (repart sur des jobs frais, évite les « job not found » qui s'accumulent).
+            if (accRun >= REFRESH_EVERY) { refreshMiner(); return }
         }
 
         // Luckpool refuse la part parce que son propre calcul du hash diffère du nôtre : le calcul est faux
@@ -412,9 +443,11 @@ class MiningService : Service() {
 
     private fun threadsFor(l: Level): Int {
         val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+        // Faible : ~1/4 des cœurs → le téléphone reste fluide pour les autres tâches.
+        // Moyen : ~1/2 des cœurs. Max : tous les cœurs (100 % de la puissance).
         val base = when (Prefs.mode(this)) {
-            PowerMode.ECO -> cores / 2
-            PowerMode.BALANCED -> cores * 3 / 4
+            PowerMode.ECO -> cores / 4
+            PowerMode.BALANCED -> cores / 2
             PowerMode.MAX -> cores
         }.coerceAtLeast(1)
         return if (l == Level.REDUCED) (base / 2).coerceAtLeast(1) else base
@@ -581,6 +614,7 @@ class MiningService : Service() {
         private const val CHANNEL_ID = "mining"
         private const val NOTIF_ID = 1
         private const val TICK_MS = 15_000L
+        private const val REFRESH_EVERY = 100   // reconnexion à LuckPool toutes les 100 parts acceptées
         private const val TAG = "MiningService"
 
         @Volatile
