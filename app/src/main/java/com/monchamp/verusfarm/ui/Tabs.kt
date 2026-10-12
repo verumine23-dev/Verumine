@@ -59,6 +59,7 @@ import com.monchamp.verusfarm.HashPoint
 import com.monchamp.verusfarm.MiningUi
 import com.monchamp.verusfarm.PayoutMethod
 import com.monchamp.verusfarm.PoolStats
+import com.monchamp.verusfarm.PowerMode
 import com.monchamp.verusfarm.Prefs
 import com.monchamp.verusfarm.Rates
 import com.monchamp.verusfarm.RewardNotifier
@@ -266,10 +267,11 @@ private fun AddDeviceCard(onClick: () -> Unit) {
 
 // =============================================================== MINAGE
 @Composable
-fun MineTab(ui: MiningUi, pool: PoolStats?, history: List<HashPoint>, device: DeviceInfo) {
+fun MineTab(ui: MiningUi, pool: PoolStats?, history: List<HashPoint>, device: DeviceInfo, actions: Actions) {
     var range by remember { mutableStateOf(24) }
+    var power by remember { mutableStateOf(device.mode) }
     TabColumn {
-        TabHeader("Minage", "Pleine puissance, en continu")
+        TabHeader("Minage", "Règle la puissance et laisse tourner")
 
         NeonCard {
             Text("Statut du minage", fontSize = 13.sp, color = TexteDoux)
@@ -288,6 +290,34 @@ fun MineTab(ui: MiningUi, pool: PoolStats?, history: List<HashPoint>, device: De
                 Text("VerusHash", fontSize = 12.sp, color = Lavande)
             }
             Text(ui.status, fontSize = 13.sp, color = TexteDoux)
+        }
+
+        NeonCard {
+            SectionTitle("Puissance de calcul")
+            Text(
+                "Choisis la part du téléphone utilisée pour le minage. En « Faible », le téléphone reste " +
+                    "fluide pour tes autres applications ; en « Max », toute la puissance est utilisée.",
+                fontSize = 12.sp, color = TexteDoux
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                Chip("Faible", power == PowerMode.ECO, Modifier.weight(1f)) {
+                    power = PowerMode.ECO; actions.onSetPower(PowerMode.ECO)
+                }
+                Chip("Moyen", power == PowerMode.BALANCED, Modifier.weight(1f)) {
+                    power = PowerMode.BALANCED; actions.onSetPower(PowerMode.BALANCED)
+                }
+                Chip("Max", power == PowerMode.MAX, Modifier.weight(1f)) {
+                    power = PowerMode.MAX; actions.onSetPower(PowerMode.MAX)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            val desc = when (power) {
+                PowerMode.ECO -> "Faible : environ un quart des cœurs. Idéal pour utiliser le téléphone en même temps."
+                PowerMode.BALANCED -> "Moyen : environ la moitié des cœurs. Bon équilibre entre gains et confort."
+                PowerMode.MAX -> "Max : tous les cœurs (100 %). Gains maximum, téléphone plus sollicité et plus chaud."
+            }
+            Text(desc, fontSize = 12.sp, color = Lavande)
         }
 
         SectionTitle("Statistiques en temps réel")
@@ -337,7 +367,8 @@ fun MineTab(ui: MiningUi, pool: PoolStats?, history: List<HashPoint>, device: De
             )
             InfoRow("Serveur", if (ui.pool != "—") ui.pool else "—")
             Text(
-                "Le minage utilise automatiquement toute la puissance disponible et se réduit tout seul si le téléphone chauffe trop.",
+                "Le minage suit la puissance choisie ci-dessus et se réduit tout seul si le téléphone chauffe trop. " +
+                    "La connexion à LuckPool se rafraîchit automatiquement toutes les 100 parts validées.",
                 fontSize = 12.sp, color = TexteDoux
             )
         }
