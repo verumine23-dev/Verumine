@@ -17,12 +17,14 @@ import com.monchamp.verusfarm.Checks
 import com.monchamp.verusfarm.HashPoint
 import com.monchamp.verusfarm.MiningUi
 import com.monchamp.verusfarm.PoolStats
+import com.monchamp.verusfarm.PowerMode
 
 // Informations sur cet appareil
 class DeviceInfo(
     val checks: Checks,
     val abi: String,
-    val cores: Int
+    val cores: Int,
+    val mode: PowerMode
 )
 
 // Actions déclenchées par l'écran
@@ -32,6 +34,7 @@ class Actions(
     val onAskAdmin: () -> Unit,
     val onOpenAppSettings: () -> Unit,
     val onOpenUrl: (String) -> Unit,
+    val onSetPower: (PowerMode) -> Unit = {},
     val onSetupDone: () -> Unit = {}
 )
 
@@ -82,7 +85,7 @@ fun MainScreen(
         Box(Modifier.weight(1f)) {
             when (tab) {
                 0 -> HomeTab(ui, pool, device) { tab = it }
-                1 -> MineTab(ui, pool, history, device)
+                1 -> MineTab(ui, pool, history, device, actions)
                 2 -> WalletTab(pool, device, actions)
                 3 -> DevicesTab()
                 else -> MoreTab(ui, device, actions)
