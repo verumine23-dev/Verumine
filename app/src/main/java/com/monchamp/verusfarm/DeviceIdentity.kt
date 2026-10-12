@@ -26,10 +26,19 @@ object DeviceIdentity {
     }
 
     // Identifiant envoyé à Luckpool : ADRESSE.nomDuWorker (le worker ne contient jamais de point)
+    // Format confirmé par la doc LuckPool : « Add rig name to username as follows: USER.RIG ».
     fun poolUser(ctx: Context): String {
         val w = Prefs.wallet(ctx).trim()
         val worker = workerName(ctx)
         return "$w.$worker"
+    }
+
+    // Version affichable du diagnostic : l'adresse est masquée (confidentielle), le worker reste
+    // visible pour que l'utilisateur vérifie le nom réellement envoyé à LuckPool.
+    fun maskedPoolUser(ctx: Context): String {
+        val w = Prefs.wallet(ctx).trim()
+        val masked = if (w.length > 8) "${w.take(4)}…${w.takeLast(4)}" else "R…"
+        return "$masked.${workerName(ctx)}"
     }
 
     fun abi(): String = Build.SUPPORTED_ABIS.firstOrNull() ?: "inconnu"
