@@ -85,7 +85,8 @@ class MainActivity : ComponentActivity() {
                     device = DeviceInfo(
                         checks = checks,
                         abi = DeviceIdentity.abi(),
-                        cores = cores
+                        cores = cores,
+                        mode = Prefs.mode(this@MainActivity)
                     ),
                     actions = Actions(
                         onAskNotif = { askNotificationPermission() },
@@ -93,6 +94,7 @@ class MainActivity : ComponentActivity() {
                         onAskAdmin = { askAdmin() },
                         onOpenAppSettings = { openAppSettings() },
                         onOpenUrl = { openUrl(it) },
+                        onSetPower = { setPowerMode(it) },
                         onSetupDone = { Prefs.setSetupDone(this@MainActivity); promptSetup = false }
                     ),
                     promptSetup = promptSetup
@@ -123,6 +125,21 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             MiningState.set {
                 it.copy(status = "Impossible de démarrer le minage : ${e.message}", tone = Tone.ERROR)
+            }
+        }
+    }
+
+    // L'utilisateur a changé la puissance (Faible / Moyen / Max) sur la page Minage.
+    // On enregistre le choix et, si le minage tourne, on le relance proprement avec le
+    // nouveau nombre de cœurs (le service lit Prefs.mode au redémarrage).
+    private fun setPowerMode(mode: PowerMode) {
+        Prefs.setMode(this, mode)
+        if (Prefs.isEnabled(this) && MiningService.running) {
+            try {
+                val intent = Intent(this, MiningService::class.java)
+                    .putExtra(MiningService.EXTRA_RELOAD, true)
+                ContextCompat.startForegroundService(this, intent)
+            } catch (_: Exception) {
             }
         }
     }
