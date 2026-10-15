@@ -123,9 +123,22 @@ object Prefs {
     fun pricePer10(ctx: Context): Double = getDouble(ctx, "price_per10", 0.0)
     fun setPricePer10(ctx: Context, v: Double) = putDouble(ctx, "price_per10", v)
 
+    // ------------------------------- Rappels (battement de cœur, même hors ligne)
+    // Dernier moment où on a prévenu « connecte-toi » / « tu ne mines pas ».
+    fun lastReminderAt(ctx: Context, kind: String): Long = sp(ctx).getLong("reminder_$kind", 0L)
+    fun setLastReminderAt(ctx: Context, kind: String, ts: Long) =
+        sp(ctx).edit().putLong("reminder_$kind", ts).apply()
+
     // ----------------------------------------- Configuration initiale (onboarding)
     fun setupDone(ctx: Context): Boolean = sp(ctx).getBoolean("setup_done", false)
     fun setSetupDone(ctx: Context) = sp(ctx).edit().putBoolean("setup_done", true).apply()
+
+    // Réglages constructeur (OEM) qu'on ne peut pas vérifier par programme :
+    // l'utilisateur confirme lui-même qu'il les a activés (bouton « C'est fait »).
+    fun autostartDone(ctx: Context): Boolean = sp(ctx).getBoolean("oem_autostart_done", false)
+    fun setAutostartDone(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("oem_autostart_done", v).apply()
+    fun recentsLockDone(ctx: Context): Boolean = sp(ctx).getBoolean("oem_recents_done", false)
+    fun setRecentsLockDone(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("oem_recents_done", v).apply()
 
     // ------------------------------------------------- Dernier pays choisi
     fun lastCountry(ctx: Context): String = sp(ctx).getString("last_country", "") ?: ""
