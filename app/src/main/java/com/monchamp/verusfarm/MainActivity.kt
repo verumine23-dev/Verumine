@@ -40,6 +40,7 @@ class MainActivity : ComponentActivity() {
     private var checks by mutableStateOf(Checks())
     private var wallet by mutableStateOf("")
     private var promptSetup by mutableStateOf(false)
+    private var showRoulette by mutableStateOf(false)
 
     private val notifLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { refreshChecks() }
@@ -61,6 +62,9 @@ class MainActivity : ComponentActivity() {
         }
         // Propose la configuration (autorisations) tant qu'elle n'a pas été validée
         promptSetup = !Prefs.setupDone(this)
+
+        // Roulette de reconnexion : demandée par la notification, ou en attente d'un précédent passage
+        showRoulette = intent?.getBooleanExtra(EXTRA_SHOW_ROULETTE, false) == true || Prefs.pendingRoulette(this)
 
         MiningState.set { it.copy(enabled = Prefs.isEnabled(this), miningMs = Prefs.miningMs(this)) }
         refreshChecks()
@@ -99,9 +103,27 @@ class MainActivity : ComponentActivity() {
                         onOpenAutostart = { openAutostartSettings() },
                         onSetupDone = { Prefs.setSetupDone(this@MainActivity); promptSetup = false }
                     ),
-                    promptSetup = promptSetup
+                    promptSetup = promptSetup,
+                    showRoulette = showRoulette,
+                    onRouletteClaim = {
+                        Rewards.grantReconnectJackpot(this@MainActivity)
+                        Prefs.setPendingRoulette(this@MainActivity, false)
+                        showRoulette = false
+                    },
+                    onRouletteClose = {
+                        Prefs.setPendingRoulette(this@MainActivity, false)
+                        showRoulette = false
+                    }
                 )
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_SHOW_ROULETTE, false) || Prefs.pendingRoulette(this)) {
+            showRoulette = true
         }
     }
 
@@ -110,6 +132,10 @@ class MainActivity : ComponentActivity() {
         refreshChecks()
         wallet = Prefs.wallet(this)
         RewardNotifier.scheduleEnergyFull(this)
+    }
+
+    companion object {
+        const val EXTRA_SHOW_ROULETTE = "show_roulette"
     }
 
     // ---------- Minage ----------
