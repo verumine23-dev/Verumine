@@ -71,6 +71,30 @@ object RewardNotifier {
         }
     }
 
+    // Hors ligne, minage activé : on invite à se connecter (notification locale, sans internet).
+    fun notifyOffline(ctx: Context) {
+        ensureChannel(ctx)
+        try {
+            (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .notify(1004, build(ctx, "Bonjour 👋",
+                    "Connecte-toi à internet pour que ton téléphone reprenne le minage."))
+        } catch (e: Exception) {
+            Log.w(TAG, "notifyOffline", e)
+        }
+    }
+
+    // Minage non activé : on rappelle que le téléphone ne mine pas encore (notification locale).
+    fun notifyNotMining(ctx: Context) {
+        ensureChannel(ctx)
+        try {
+            (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .notify(1005, build(ctx, "Bonjour 👋",
+                    "Ton téléphone ne mine pas encore. Ouvre Verumine et lance le minage pour gagner."))
+        } catch (e: Exception) {
+            Log.w(TAG, "notifyNotMining", e)
+        }
+    }
+
     fun notifyReward(ctx: Context, level: Int) {
         ensureChannel(ctx)
         try {
