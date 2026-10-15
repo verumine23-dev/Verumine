@@ -66,6 +66,7 @@ class MainActivity : ComponentActivity() {
         refreshChecks()
         NetworkWake.register(this)
         RewardNotifier.scheduleEnergyFull(this)
+        Heartbeat.schedule(this)   // battement de cœur : réveil périodique même hors ligne
         if (Prefs.isEnabled(this)) startMining()
 
         val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
@@ -95,6 +96,7 @@ class MainActivity : ComponentActivity() {
                         onOpenAppSettings = { openAppSettings() },
                         onOpenUrl = { openUrl(it) },
                         onSetPower = { setPowerMode(it) },
+                        onOpenAutostart = { openAutostartSettings() },
                         onSetupDone = { Prefs.setSetupDone(this@MainActivity); promptSetup = false }
                     ),
                     promptSetup = promptSetup
@@ -195,6 +197,38 @@ class MainActivity : ComponentActivity() {
             startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
         } catch (_: Exception) {
         }
+    }
+
+    // Ouvre, au mieux, l'écran « Démarrage automatique » du constructeur. Chaque marque a
+    // son propre écran (composant caché) : on essaie les plus connus, sinon on retombe sur
+    // la fiche de l'application. Le guide affiché dans l'app explique où appuyer ensuite.
+    private fun openAutostartSettings() {
+        val candidates = listOf(
+            "com.miui.securitycenter" to "com.miui.permcenter.autostart.AutoStartManagementActivity",
+            "com.coloros.safecenter" to "com.coloros.safecenter.permission.startup.StartupAppListActivity",
+            "com.coloros.safecenter" to "com.coloros.safecenter.startupapp.StartupAppListActivity",
+            "com.oppo.safe" to "com.oppo.safe.permission.startup.StartupAppListActivity",
+            "com.vivo.permissionmanager" to "com.vivo.permissionmanager.activity.BgStartUpManagerActivity",
+            "com.iqoo.secure" to "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity",
+            "com.huawei.systemmanager" to "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity",
+            "com.huawei.systemmanager" to "com.huawei.systemmanager.optimize.process.ProtectActivity",
+            "com.transsion.phonemaster" to "com.itel.autobootmanager.activity.AutoBootMgrActivity",
+            "com.transsion.phonemanager" to "com.itel.autobootmanager.activity.AutoBootMgrActivity"
+        )
+        for ((pkg, cls) in candidates) {
+            try {
+                // On tente d'ouvrir directement l'écran : si le composant n'existe pas,
+                // startActivity lève une exception et on passe au candidat suivant.
+                startActivity(
+                    Intent().setComponent(ComponentName(pkg, cls))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+                return
+            } catch (_: Exception) {
+            }
+        }
+        // Rien de spécifique trouvé : on ouvre la fiche de l'application (le guide prend le relais).
+        openAppSettings()
     }
 
     private fun openUrl(url: String) {
