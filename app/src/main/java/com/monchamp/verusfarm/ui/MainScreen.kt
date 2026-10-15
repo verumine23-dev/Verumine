@@ -46,18 +46,25 @@ fun AppRoot(
     history: List<HashPoint>,
     device: DeviceInfo,
     actions: Actions,
-    promptSetup: Boolean = false
+    promptSetup: Boolean = false,
+    showRoulette: Boolean = false,
+    onRouletteClaim: () -> Unit = {},
+    onRouletteClose: () -> Unit = {}
 ) {
     var splashDone by rememberSaveable { mutableStateOf(false) }
     var setupDismissed by rememberSaveable { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         MainScreen(ui, pool, history, device, actions)
-        if (splashDone && promptSetup && !setupDismissed) {
+        if (splashDone && promptSetup && !setupDismissed && !showRoulette) {
             SetupDialog(
                 checks = device.checks,
                 actions = actions,
                 onDone = { setupDismissed = true; actions.onSetupDone() }
             )
+        }
+        // Roulette de reconnexion : prioritaire, passe par-dessus tout le reste.
+        if (splashDone && showRoulette) {
+            RouletteReward(onClaim = onRouletteClaim, onClose = onRouletteClose)
         }
         if (!splashDone) SplashScreen(onFinished = { splashDone = true })
     }
