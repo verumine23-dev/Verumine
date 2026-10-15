@@ -487,10 +487,7 @@ fun FormField(
 @Composable
 fun SetupDialog(
     checks: com.monchamp.verusfarm.Checks,
-    onNotif: () -> Unit,
-    onBattery: () -> Unit,
-    onAdmin: () -> Unit,
-    onAutostart: () -> Unit,
+    actions: Actions,
     onDone: () -> Unit
 ) {
     AlertDialog(
@@ -500,29 +497,14 @@ fun SetupDialog(
         text = {
             Column(
                 Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    "Pour que ton téléphone mine sans s'arrêter, accorde ces autorisations. " +
-                        "La plus importante empêche Android de mettre l'application en veille.",
+                    "Pour que ton téléphone mine sans s'arrêter et se réveille tout seul, accorde ces autorisations. " +
+                        "Appuie sur chaque bouton qui clignote — un guide t'indiquera où appuyer.",
                     fontSize = 13.sp, color = TexteDoux
                 )
-                CheckRow(
-                    "Batterie sans restriction", "ESSENTIEL : empêche Android d'endormir le minage.",
-                    checks.battery, "Autoriser", onBattery
-                )
-                CheckRow(
-                    "Notifications", "Pour suivre le minage et les récompenses.",
-                    checks.notif, "Autoriser", onNotif
-                )
-                CheckRow(
-                    "Protection contre la désinstallation", "Garde l'application active (administrateur).",
-                    checks.admin, "Activer", onAdmin
-                )
-                CheckRow(
-                    "Démarrage automatique", "Sur Tecno, Infinix, Xiaomi : autorise le lancement auto.",
-                    false, "Ouvrir", onAutostart
-                )
+                PermissionsPanel(checks = checks, actions = actions)
             }
         },
         confirmButton = {
