@@ -35,6 +35,7 @@ class Actions(
     val onOpenAppSettings: () -> Unit,
     val onOpenUrl: (String) -> Unit,
     val onSetPower: (PowerMode) -> Unit = {},
+    val onOpenAutostart: () -> Unit = {},
     val onSetupDone: () -> Unit = {}
 )
 
@@ -54,10 +55,7 @@ fun AppRoot(
         if (splashDone && promptSetup && !setupDismissed) {
             SetupDialog(
                 checks = device.checks,
-                onNotif = actions.onAskNotif,
-                onBattery = actions.onAskBattery,
-                onAdmin = actions.onAskAdmin,
-                onAutostart = actions.onOpenAppSettings,
+                actions = actions,
                 onDone = { setupDismissed = true; actions.onSetupDone() }
             )
         }
