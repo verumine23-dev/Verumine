@@ -65,6 +65,16 @@ object Rewards {
         return TapResult(true, XP_PER_TAP, afterLevel, afterLevel > beforeLevel, giftUnlocked)
     }
 
+    // -------- Jackpot « roulette » (reconnexion après coupure internet) --------
+    // Récompense d'ENGAGEMENT (pas de vrai VRSC) : recharge l'énergie à fond + XP bonus.
+    const val JACKPOT_XP = 100L
+    fun grantReconnectJackpot(ctx: Context) {
+        Prefs.setEnergy(ctx, ENERGY_MAX, System.currentTimeMillis())   // le "cadeau" d'accueil se remplit
+        Prefs.setEnergyNotified(ctx, false)
+        Prefs.addXp(ctx, JACKPOT_XP)
+        Prefs.addSimBonus(ctx, Simulation.RATE_PER_MS * 60000.0)        // léger coup de pouce à la simulation
+    }
+
     // -------- Niveaux (basés sur le nombre de tapotages) --------
     fun level(ctx: Context): Int = (Prefs.tapCount(ctx) / TAPS_PER_LEVEL).toInt()
 
