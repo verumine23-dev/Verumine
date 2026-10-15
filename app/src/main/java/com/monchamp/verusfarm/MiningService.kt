@@ -62,6 +62,7 @@ class MiningService : Service() {
     private var retryPending = false
     private var hashed = false
     private var startNotified = false   // notification « minage démarré » déjà envoyée pour cette session
+    private var offlineHalted = false   // le minage a été stoppé faute d'internet (→ roulette à la reconnexion)
     private var runningThreads = 0
     private var currentHost = ""
     private var accepted = 0       // parts acceptées cumulées (affichage, toutes reconnexions)
@@ -188,6 +189,7 @@ class MiningService : Service() {
         }
         if (!hasInternet) {
             startNotified = false   // on re-préviendra quand le minage reprendra au retour d'internet
+            offlineHalted = true    // arrêt causé par l'absence d'internet → roulette à la reconnexion
             haltMiner("En attente d'internet…", Tone.WARN)
             return
         }
@@ -298,6 +300,12 @@ class MiningService : Service() {
                 if (!startNotified) {
                     startNotified = true
                     RewardNotifier.notifyMiningStarted(this)
+                }
+                // Reconnexion APRÈS une coupure internet → récompense roulette (jamais au refresh 100 parts)
+                if (offlineHalted) {
+                    offlineHalted = false
+                    Prefs.setPendingRoulette(this, true)
+                    RewardNotifier.notifyReconnectRoulette(this)
                 }
             }
             val suffix = if (level == Level.REDUCED) " (puissance réduite)" else ""
