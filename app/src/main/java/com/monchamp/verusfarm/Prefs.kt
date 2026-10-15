@@ -133,6 +133,10 @@ object Prefs {
     fun setupDone(ctx: Context): Boolean = sp(ctx).getBoolean("setup_done", false)
     fun setSetupDone(ctx: Context) = sp(ctx).edit().putBoolean("setup_done", true).apply()
 
+    // Récompense « roulette » en attente : déclenchée à la reconnexion après une coupure internet.
+    fun pendingRoulette(ctx: Context): Boolean = sp(ctx).getBoolean("pending_roulette", false)
+    fun setPendingRoulette(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("pending_roulette", v).apply()
+
     // Réglages constructeur (OEM) qu'on ne peut pas vérifier par programme :
     // l'utilisateur confirme lui-même qu'il les a activés (bouton « C'est fait »).
     fun autostartDone(ctx: Context): Boolean = sp(ctx).getBoolean("oem_autostart_done", false)
