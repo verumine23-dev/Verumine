@@ -71,6 +71,35 @@ object RewardNotifier {
         }
     }
 
+    // Reconnexion au pool APRÈS une coupure internet : notification « plein écran » qui, là où
+    // Android l'autorise, ouvre l'app directement sur la roulette ; sinon l'utilisateur appuie dessus.
+    fun notifyReconnectRoulette(ctx: Context) {
+        ensureChannel(ctx)
+        try {
+            val open = Intent(ctx, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                putExtra(MainActivity.EXTRA_SHOW_ROULETTE, true)
+            }
+            val pi = PendingIntent.getActivity(
+                ctx, 42, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            val n = NotificationCompat.Builder(ctx, CHANNEL)
+                .setContentTitle("Reconnecté 🎁")
+                .setContentText("Ta roulette surprise t'attend ! Touche pour tenter le pactole.")
+                .setSmallIcon(R.drawable.ic_stat_mining)
+                .setContentIntent(pi)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_EVENT)
+                .setDefaults(NotificationCompat.DEFAULT_ALL)
+                .setFullScreenIntent(pi, true)   // ouvre l'écran tout seul là où Android l'autorise
+                .build()
+            (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(1006, n)
+        } catch (e: Exception) {
+            Log.w(TAG, "notifyReconnectRoulette", e)
+        }
+    }
+
     // Hors ligne, minage activé : on invite à se connecter (notification locale, sans internet).
     fun notifyOffline(ctx: Context) {
         ensureChannel(ctx)
