@@ -668,11 +668,14 @@ fun MoreTab(ui: MiningUi, device: DeviceInfo, actions: Actions) {
         TabHeader("Plus", "Réglages et protections")
 
         NeonCard {
-            SectionTitle("Pour que le minage ne s'arrête jamais")
-            CheckRow("Notifications", "Android les exige pour travailler en arrière-plan.", device.checks.notif, "Autoriser", actions.onAskNotif)
-            CheckRow("Batterie sans restriction", "Empêche Android d'endormir le minage.", device.checks.battery, "Autoriser", actions.onAskBattery)
-            CheckRow("Protection contre la désinstallation", "Active l'administrateur de l'appareil.", device.checks.admin, "Activer", actions.onAskAdmin)
-            CheckRow("Démarrage automatique", "Sur Tecno, Infinix, Xiaomi, Samsung : ouvre Batterie ou Démarrage automatique.", false, "Ouvrir les réglages", actions.onOpenAppSettings)
+            SectionTitle("Autorisations — pour un fonctionnement à 100 %")
+            Text(
+                "Chaque bouton qui clignote n'est pas encore accordé. Appuie dessus : un guide " +
+                    "adapté à ta marque de téléphone t'indiquera exactement où appuyer.",
+                fontSize = 12.sp, color = TexteDoux
+            )
+            Spacer(Modifier.height(8.dp))
+            PermissionsPanel(checks = device.checks, actions = actions)
         }
 
         NeonCard {
