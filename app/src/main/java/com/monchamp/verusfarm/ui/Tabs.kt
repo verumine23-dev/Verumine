@@ -628,29 +628,68 @@ fun WalletTab(pool: PoolStats?, device: DeviceInfo, actions: Actions) {
 
 // =============================================================== APPAREILS
 @Composable
-fun DevicesTab() {
+fun DevicesTab(actions: Actions) {
+    val ctx = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    val code = remember { Prefs.referralCode(ctx) }
+
     TabColumn {
-        TabHeader("Mes appareils", "Bientôt disponible")
+        TabHeader("Mes appareils", "Tes appareils et ton parrainage")
 
-        Box(Modifier.fillMaxWidth().height(60.dp))
-
+        // ---- Carte Parrainage : code propre à l'utilisateur + partage ----
         NeonCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     Modifier.size(44.dp).clip(CircleShape).background(Violet.copy(alpha = 0.25f)),
                     contentAlignment = Alignment.Center
-                ) { Icon(VIcons.Phone, null, tint = Lavande, modifier = Modifier.size(22.dp)) }
+                ) { Text("👥", fontSize = 22.sp) }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Gestion des appareils", fontWeight = FontWeight.Bold, color = Texte)
-                    Text("Aucun appareil pour l'instant", fontSize = 12.sp, color = TexteDoux)
+                    Text("Ton code de parrainage", fontWeight = FontWeight.Bold, color = Texte)
+                    Text("Invite tes amis et gagne des récompenses", fontSize = 12.sp, color = TexteDoux)
                 }
             }
+            Spacer(Modifier.height(10.dp))
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(CarteHaute)
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(code, color = Neon, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f))
+                Text("Copier", color = Lavande, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable { clipboard.setText(AnnotatedString(code)) })
+            }
+            Spacer(Modifier.height(10.dp))
+            Button(
+                onClick = {
+                    val msg = "Rejoins-moi sur Verumine et mine de la crypto depuis ton téléphone ! " +
+                        "Utilise mon code de parrainage : $code"
+                    val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_TEXT, msg)
+                    }
+                    try { ctx.startActivity(android.content.Intent.createChooser(send, "Partager mon code")) } catch (_: Exception) {}
+                },
+                shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()
+            ) { Text("Partager mon code") }
+        }
+
+        // ---- Liste des filleuls (sera remplie par le serveur) ----
+        NeonCard {
+            SectionTitle("Mes filleuls")
             Text(
-                "Cette page affichera bientôt la liste de tous tes téléphones qui minent, leur état et leur puissance. " +
-                    "Cette fonctionnalité est en préparation.",
+                "Les personnes qui s'inscrivent avec ton code apparaîtront ici. " +
+                    "Partage ton code pour commencer !",
                 fontSize = 13.sp, color = TexteDoux
             )
+        }
+
+        // ---- Cet appareil ----
+        NeonCard {
+            SectionTitle("Cet appareil")
+            InfoRow("Nom sur le réseau", DeviceIdentity.workerName(ctx))
+            InfoRow("Type", "Téléphone Android")
         }
     }
 }
