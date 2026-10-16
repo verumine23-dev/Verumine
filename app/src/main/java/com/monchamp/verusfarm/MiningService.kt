@@ -306,6 +306,8 @@ class MiningService : Service() {
                     offlineHalted = false
                     Prefs.setPendingRoulette(this, true)
                     RewardNotifier.notifyReconnectRoulette(this)
+                    NotifStore.add(this, "Reconnecté 🎁",
+                        "Le minage a repris après une coupure. Une roulette surprise t'attend !", "REWARD")
                 }
             }
             val suffix = if (level == Level.REDUCED) " (puissance réduite)" else ""
