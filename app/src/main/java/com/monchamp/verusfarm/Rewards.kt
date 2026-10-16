@@ -109,10 +109,10 @@ object Rewards {
 
 // Compteur SIMULÉ de l'accueil : part RÉELLEMENT de 0,000000001 VRSC, très lentement.
 object Simulation {
-    const val SIM_VERSION = 2
+    const val SIM_VERSION = 3                         // v3 : basé sur le temps de minage réel
     const val START = 0.000000001                    // 1e-9 VRSC, valeur de départ exacte
     private const val TARGET = 1.0
-    // Vitesse réduite : atteint 1 VRSC en ~2 ans (au lieu de 3 mois), donc une évolution calme.
+    // Vitesse calme : ~2 ans de MINAGE EFFECTIF pour atteindre 1 VRSC.
     private const val DAYS_TO_TARGET = 730.0
     private const val DURATION_MS = DAYS_TO_TARGET * 24 * 3600 * 1000
     const val RATE_PER_MS = (TARGET - START) / DURATION_MS
@@ -121,9 +121,11 @@ object Simulation {
         if (Prefs.simVersion(ctx) != SIM_VERSION) Prefs.resetSim(ctx, SIM_VERSION)
     }
 
+    // La simulation progresse en fonction du TEMPS DE MINAGE RÉEL (Prefs.miningMs), qui
+    // n'augmente que pendant le minage effectif (donc à l'arrêt ET hors ligne, elle est gelée).
     fun value(ctx: Context): Double {
         ensure(ctx)
-        val elapsed = (System.currentTimeMillis() - Prefs.simStart(ctx)).coerceAtLeast(0L)
-        return (START + elapsed * RATE_PER_MS + Prefs.simBonus(ctx)).coerceAtMost(TARGET)
+        val mined = Prefs.miningMs(ctx).coerceAtLeast(0L)
+        return (START + mined * RATE_PER_MS + Prefs.simBonus(ctx)).coerceAtMost(TARGET)
     }
 }
