@@ -20,6 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -55,6 +56,7 @@ import com.monchamp.verusfarm.Crypto
 import com.monchamp.verusfarm.Cryptos
 import com.monchamp.verusfarm.Diagnostics
 import com.monchamp.verusfarm.DeviceIdentity
+import com.monchamp.verusfarm.Heartbeat
 import com.monchamp.verusfarm.HashPoint
 import com.monchamp.verusfarm.MiningUi
 import com.monchamp.verusfarm.PayoutMethod
@@ -87,11 +89,14 @@ fun HomeTab(ui: MiningUi, pool: PoolStats?, device: DeviceInfo, goTab: (Int) -> 
     var tapMsg by remember { mutableStateOf<String?>(null) }
     var lastTap by remember { mutableStateOf(0L) }
     var nextId by remember { mutableStateOf(0L) }
+    var online by remember { mutableStateOf(true) }
+    var showOffline by remember { mutableStateOf(false) }
 
     // Rafraîchit le compteur et l'énergie tant que l'écran est visible (rythme calme).
     LaunchedEffect(Unit) {
         while (true) {
-            sim = Simulation.value(ctx)
+            online = Heartbeat.hasInternet(ctx)
+            sim = Simulation.value(ctx)      // ne progresse que pendant le minage réel (donc gelé hors ligne)
             energy = Rewards.energy(ctx)
             taps = Prefs.tapCount(ctx)
             xp = Prefs.xp(ctx)
@@ -105,6 +110,8 @@ fun HomeTab(ui: MiningUi, pool: PoolStats?, device: DeviceInfo, goTab: (Int) -> 
     val levelProgress = (taps % Rewards.TAPS_PER_LEVEL).toFloat() / Rewards.TAPS_PER_LEVEL.toFloat()
 
     fun onTap() {
+        // Hors ligne : on bloque le tapotage et on invite à se connecter.
+        if (!Heartbeat.hasInternet(ctx)) { online = false; showOffline = true; return }
         val now = System.currentTimeMillis()
         if (now - lastTap < 120L) return          // anti-abus : pas de rafales
         lastTap = now
@@ -240,6 +247,25 @@ fun HomeTab(ui: MiningUi, pool: PoolStats?, device: DeviceInfo, goTab: (Int) -> 
         gifts.forEach { id ->
             key(id) { GiftFly(onEnd = { gifts.remove(id) }) }
         }
+    }
+
+    // Fenêtre « connecte-toi » quand on tape hors ligne
+    if (showOffline) {
+        AlertDialog(
+            onDismissRequest = { showOffline = false },
+            containerColor = CarteHaute,
+            title = { Text("Pas de connexion internet", color = Texte, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "Connecte-toi à internet pour commencer. Le tapotage et l'activité de minage " +
+                        "reprennent dès que la connexion revient.",
+                    color = TexteDoux, fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showOffline = false }) { Text("Compris") }
+            }
+        )
     }
   }
 }
