@@ -151,4 +151,23 @@ object Prefs {
     // --------------------------------------- Historique des demandes de retrait
     fun withdrawals(ctx: Context): String = sp(ctx).getString("withdrawals", "[]") ?: "[]"
     fun setWithdrawals(ctx: Context, json: String) = sp(ctx).edit().putString("withdrawals", json).apply()
+
+    // --------------------------------------- Notifications (page Notifications)
+    fun notificationsJson(ctx: Context): String = sp(ctx).getString("notifications", "[]") ?: "[]"
+    fun setNotificationsJson(ctx: Context, json: String) = sp(ctx).edit().putString("notifications", json).apply()
+    fun welcomeNotifDone(ctx: Context): Boolean = sp(ctx).getBoolean("welcome_notif", false)
+    fun setWelcomeNotifDone(ctx: Context) = sp(ctx).edit().putBoolean("welcome_notif", true).apply()
+
+    // Code de parrainage de CET utilisateur (local pour l'instant ; remplacé par le serveur plus tard).
+    fun referralCode(ctx: Context): String {
+        val existing = sp(ctx).getString("referral_code", null)
+        if (!existing.isNullOrBlank()) return existing
+        val created = java.util.UUID.randomUUID().toString().replace("-", "").uppercase().take(8)
+        sp(ctx).edit().putString("referral_code", created).apply()
+        return created
+    }
+    // Code de parrainage saisi à l'inscription (le parrain), s'il y en a un.
+    fun referredByCode(ctx: Context): String = sp(ctx).getString("referred_by", "") ?: ""
+    fun setReferredByCode(ctx: Context, code: String) =
+        sp(ctx).edit().putString("referred_by", code.trim().uppercase()).apply()
 }
