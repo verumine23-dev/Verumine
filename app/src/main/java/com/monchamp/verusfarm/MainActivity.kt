@@ -71,6 +71,15 @@ class MainActivity : ComponentActivity() {
         NetworkWake.register(this)
         RewardNotifier.scheduleEnergyFull(this)
         Heartbeat.schedule(this)   // battement de cœur : réveil périodique même hors ligne
+
+        // Notifications in-app : charge le magasin et pose un message de bienvenue (une fois).
+        NotifStore.load(this)
+        if (!Prefs.welcomeNotifDone(this)) {
+            Prefs.setWelcomeNotifDone(this)
+            NotifStore.add(this, "Bienvenue sur Verumine 👋",
+                "Partage ton code de parrainage (page Mes appareils) et invite tes amis à miner avec toi !",
+                "SYSTEM")
+        }
         if (Prefs.isEnabled(this)) startMining()
 
         val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
