@@ -22,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -33,6 +34,7 @@ import com.monchamp.verusfarm.ui.Actions
 import com.monchamp.verusfarm.ui.AppRoot
 import com.monchamp.verusfarm.ui.AuthFlow
 import com.monchamp.verusfarm.ui.DeviceInfo
+import com.monchamp.verusfarm.ui.SplashScreen
 import com.monchamp.verusfarm.ui.VerusFarmTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -93,8 +95,11 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             VerusFarmTheme {
+                var splashDone by rememberSaveable { mutableStateOf(false) }
                 val authed by AuthState.loggedIn.collectAsStateWithLifecycle()
-                if (!authed) {
+                if (!splashDone) {
+                    SplashScreen(onFinished = { splashDone = true })
+                } else if (!authed) {
                     AuthFlow(onAuthed = { AuthState.setLoggedIn(true) })
                 } else {
                 val ui by MiningState.ui.collectAsStateWithLifecycle()
