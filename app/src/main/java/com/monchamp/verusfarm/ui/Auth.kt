@@ -96,11 +96,11 @@ fun AuthFlow(onAuthed: () -> Unit) {
             }
             AuthMode.VERIFY -> {
                 Text(
-                    "Un code à 6 chiffres a été envoyé à\n$email",
+                    "Un code de vérification a été envoyé à\n$email",
                     color = TexteDoux, fontSize = 13.sp, textAlign = TextAlign.Center,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
-                FormField(codeInput, { codeInput = it }, "Code à 6 chiffres", KeyboardType.Number)
+                FormField(codeInput, { codeInput = it }, "Code de vérification", KeyboardType.Number)
             }
             AuthMode.FORGOT -> {
                 FormField(email, { email = it }, "Email de ton compte", KeyboardType.Email)
@@ -111,7 +111,7 @@ fun AuthFlow(onAuthed: () -> Unit) {
                     color = TexteDoux, fontSize = 13.sp, textAlign = TextAlign.Center,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
-                FormField(codeInput, { codeInput = it }, "Code à 6 chiffres", KeyboardType.Number)
+                FormField(codeInput, { codeInput = it }, "Code de vérification", KeyboardType.Number)
                 Spacer(Modifier.height(12.dp))
                 FormField(password, { password = it }, "Nouveau mot de passe (min. 8)", KeyboardType.Password)
             }
@@ -155,7 +155,7 @@ fun AuthFlow(onAuthed: () -> Unit) {
                         }
                     }
                     AuthMode.VERIFY -> {
-                        if (codeInput.length < 6) { error = "Entre le code à 6 chiffres reçu par email."; return@Button }
+                        if (codeInput.trim().length < 4) { error = "Entre le code de vérification reçu par email."; return@Button }
                         busy = true
                         scope.launch {
                             val r = Supa.verifyOtp(ctx, email, codeInput)
@@ -178,8 +178,8 @@ fun AuthFlow(onAuthed: () -> Unit) {
                         }
                     }
                     AuthMode.RESET -> {
-                        if (codeInput.length < 6 || password.length < 8) {
-                            error = "Entre le code à 6 chiffres et un nouveau mot de passe d'au moins 8 caractères."
+                        if (codeInput.trim().length < 4 || password.length < 8) {
+                            error = "Entre le code de vérification et un nouveau mot de passe d'au moins 8 caractères."
                             return@Button
                         }
                         busy = true
