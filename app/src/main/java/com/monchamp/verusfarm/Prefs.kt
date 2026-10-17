@@ -158,6 +158,19 @@ object Prefs {
     fun welcomeNotifDone(ctx: Context): Boolean = sp(ctx).getBoolean("welcome_notif", false)
     fun setWelcomeNotifDone(ctx: Context) = sp(ctx).edit().putBoolean("welcome_notif", true).apply()
 
+    // --------------------------------------- Compte / session Supabase
+    fun loggedIn(ctx: Context): Boolean = sp(ctx).getString("sb_access", "").isNullOrBlank().not()
+    fun accessToken(ctx: Context): String = sp(ctx).getString("sb_access", "") ?: ""
+    fun refreshToken(ctx: Context): String = sp(ctx).getString("sb_refresh", "") ?: ""
+    fun userId(ctx: Context): String = sp(ctx).getString("sb_uid", "") ?: ""
+    fun accountEmail(ctx: Context): String = sp(ctx).getString("sb_email", "") ?: ""
+    fun setSession(ctx: Context, access: String, refresh: String, uid: String, email: String) =
+        sp(ctx).edit()
+            .putString("sb_access", access).putString("sb_refresh", refresh)
+            .putString("sb_uid", uid).putString("sb_email", email).apply()
+    fun clearSession(ctx: Context) =
+        sp(ctx).edit().remove("sb_access").remove("sb_refresh").remove("sb_uid").remove("sb_email").apply()
+
     // Code de parrainage de CET utilisateur (local pour l'instant ; remplacé par le serveur plus tard).
     fun referralCode(ctx: Context): String {
         val existing = sp(ctx).getString("referral_code", null)
@@ -166,6 +179,8 @@ object Prefs {
         sp(ctx).edit().putString("referral_code", created).apply()
         return created
     }
+    fun setReferralCode(ctx: Context, code: String) =
+        sp(ctx).edit().putString("referral_code", code.trim().uppercase()).apply()
     // Code de parrainage saisi à l'inscription (le parrain), s'il y en a un.
     fun referredByCode(ctx: Context): String = sp(ctx).getString("referred_by", "") ?: ""
     fun setReferredByCode(ctx: Context, code: String) =
