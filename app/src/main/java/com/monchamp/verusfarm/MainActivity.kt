@@ -27,6 +27,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.monchamp.verusfarm.ui.Actions
 import com.monchamp.verusfarm.ui.AppRoot
@@ -35,6 +36,7 @@ import com.monchamp.verusfarm.ui.DeviceInfo
 import com.monchamp.verusfarm.ui.VerusFarmTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
@@ -84,13 +86,16 @@ class MainActivity : ComponentActivity() {
         }
         if (Prefs.isEnabled(this)) startMining()
 
+        AuthState.refresh(this)
+        handleDeepLink(intent)   // retour éventuel de la connexion Google
+
         val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
 
         setContent {
             VerusFarmTheme {
-                var authed by remember { mutableStateOf(Prefs.loggedIn(this@MainActivity)) }
+                val authed by AuthState.loggedIn.collectAsStateWithLifecycle()
                 if (!authed) {
-                    AuthFlow(onAuthed = { authed = true })
+                    AuthFlow(onAuthed = { AuthState.setLoggedIn(true) })
                 } else {
                 val ui by MiningState.ui.collectAsStateWithLifecycle()
                 val pool by PoolState.stats.collectAsStateWithLifecycle()
@@ -138,8 +143,26 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        handleDeepLink(intent)
         if (intent.getBooleanExtra(EXTRA_SHOW_ROULETTE, false) || Prefs.pendingRoulette(this)) {
             showRoulette = true
+        }
+    }
+
+    // Retour du navigateur après « Continuer avec Google » : on lit les jetons du lien et on ouvre la session.
+    private fun handleDeepLink(intent: Intent?) {
+        val data = intent?.data ?: return
+        if (data.scheme != "verumine") return
+        val frag = data.encodedFragment ?: return
+        val params = frag.split("&").mapNotNull {
+            val i = it.indexOf('=')
+            if (i <= 0) null
+            else it.substring(0, i) to java.net.URLDecoder.decode(it.substring(i + 1), "UTF-8")
+        }.toMap()
+        val access = params["access_token"] ?: return
+        val refresh = params["refresh_token"] ?: ""
+        lifecycleScope.launch {
+            if (Supa.completeOAuth(this@MainActivity, access, refresh)) AuthState.setLoggedIn(true)
         }
     }
 
