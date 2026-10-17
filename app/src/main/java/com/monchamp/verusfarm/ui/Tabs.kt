@@ -67,6 +67,7 @@ import com.monchamp.verusfarm.Rates
 import com.monchamp.verusfarm.RewardNotifier
 import com.monchamp.verusfarm.Rewards
 import com.monchamp.verusfarm.Simulation
+import com.monchamp.verusfarm.Supa
 import com.monchamp.verusfarm.Tone
 import com.monchamp.verusfarm.Withdraw
 import com.monchamp.verusfarm.WithdrawRequest
@@ -657,7 +658,12 @@ fun WalletTab(pool: PoolStats?, device: DeviceInfo, actions: Actions) {
 fun DevicesTab(actions: Actions) {
     val ctx = LocalContext.current
     val clipboard = LocalClipboardManager.current
-    val code = remember { Prefs.referralCode(ctx) }
+    var code by remember { mutableStateOf(Prefs.referralCode(ctx)) }
+    // Récupère le VRAI code de parrainage depuis le serveur (celui que les filleuls pourront utiliser).
+    LaunchedEffect(Unit) {
+        val c = Supa.fetchMyReferralCode(ctx)
+        if (!c.isNullOrBlank()) { Prefs.setReferralCode(ctx, c); code = c }
+    }
 
     TabColumn {
         TabHeader("Mes appareils", "Tes appareils et ton parrainage")
