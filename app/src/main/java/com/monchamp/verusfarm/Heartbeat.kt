@@ -80,6 +80,19 @@ object Heartbeat {
         NetworkWake.register(ctx)     // se remet à l'écoute du retour d'internet
 
         val now = System.currentTimeMillis()
+
+        // Jeux : quand la pause de 24 h est terminée, on « punch » l'utilisateur
+        // (même hors ligne / app fermée, grâce au battement de cœur).
+        val lock = Prefs.gamesLockedUntil(ctx)
+        if (lock > 0 && now >= lock && !Prefs.gamesUnlockNotified(ctx)) {
+            RewardNotifier.gamePunch(
+                ctx, "Jeux disponibles 🎮",
+                "Ta pause est terminée. Reviens jouer et gagner des récompenses !"
+            )
+            Prefs.setGamesUnlockNotified(ctx, true)
+            Prefs.setGamesLockedUntil(ctx, 0L)
+        }
+
         if (!Prefs.isEnabled(ctx)) {
             // Le minage n'est pas activé : rappel discret (au plus toutes les 6 h).
             if (now - Prefs.lastReminderAt(ctx, "idle") >= IDLE_MIN_GAP_MS) {
