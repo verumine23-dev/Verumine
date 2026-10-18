@@ -250,4 +250,31 @@ object GameApi {
     }
 
     fun formatUsd(cents: Long): String = String.format("%.2f $", cents / 100.0)
+
+    // Notifications « punch » liées aux jeux (pause 24 h, retrait disponible).
+    // Elles s'affichent en bannière ET sont stockées dans la page Notifications.
+    fun notifyFromResult(ctx: Context, r: SubmitResult) {
+        try {
+            if (r.lockedUntil != null) {
+                Prefs.setGamesLockedUntil(ctx, System.currentTimeMillis() + 24L * 60 * 60 * 1000)
+                Prefs.setGamesUnlockNotified(ctx, false)
+                RewardNotifier.gamePunch(
+                    ctx, "Pause jeux ⏳",
+                    "Tu as atteint ta limite du jour. Reviens dans 24 h pour rejouer et gagner !"
+                )
+            }
+            if (r.balanceCents >= 10000) {
+                if (!Prefs.gamesWithdrawNotified(ctx)) {
+                    RewardNotifier.gamePunch(
+                        ctx, "Retrait disponible 💰",
+                        "Ton solde de jeu a atteint 100 \$. Tu peux demander ton retrait depuis l'espace jeux."
+                    )
+                    Prefs.setGamesWithdrawNotified(ctx, true)
+                }
+            } else {
+                Prefs.setGamesWithdrawNotified(ctx, false)
+            }
+        } catch (_: Exception) {
+        }
+    }
 }
