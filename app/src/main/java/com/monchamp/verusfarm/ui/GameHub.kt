@@ -5,6 +5,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,6 +44,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -301,7 +303,14 @@ private fun GameCard(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Text(def.emoji, fontSize = 34.sp, modifier = Modifier.graphicsLayer { alpha = if (dim) 0.4f else 1f })
+        val ctx = LocalContext.current
+        val imgId = remember(def.key) { ctx.resources.getIdentifier("game_${def.key}", "drawable", ctx.packageName) }
+        Box(Modifier.graphicsLayer { alpha = if (dim) 0.4f else 1f }, contentAlignment = Alignment.Center) {
+            if (imgId != 0) Image(
+                painter = painterResource(imgId), contentDescription = null,
+                modifier = Modifier.size(60.dp).clip(RoundedCornerShape(14.dp))
+            ) else Text(def.emoji, fontSize = 40.sp)
+        }
         Text(
             def.name, fontSize = 14.sp, fontWeight = FontWeight.Bold,
             color = if (dim) Brume else Texte, textAlign = TextAlign.Center, maxLines = 2
