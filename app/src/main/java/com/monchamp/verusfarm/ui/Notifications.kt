@@ -19,6 +19,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,9 +29,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import com.monchamp.verusfarm.NotifItem
 import com.monchamp.verusfarm.NotifStore
 
 private val RougeBadge = Color(0xFFFF3B5C)
@@ -71,6 +79,7 @@ fun BellButton(onClick: () -> Unit) {
 fun NotificationsScreen(onBack: () -> Unit) {
     val ctx = LocalContext.current
     val items by NotifStore.items.collectAsState()
+    var selected by remember { mutableStateOf<NotifItem?>(null) }
 
     // Ouvrir la page = tout marquer comme lu (le badge repasse à zéro).
     LaunchedEffect(Unit) { NotifStore.markAllRead(ctx) }
@@ -106,12 +115,15 @@ fun NotificationsScreen(onBack: () -> Unit) {
             }
         } else {
             items.forEach { n ->
-                NeonCard {
-                    Row(verticalAlignment = Alignment.Top) {
+                NeonCard(modifier = Modifier.clickable { selected = n }) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text(n.title, fontWeight = FontWeight.Bold, color = Texte, fontSize = 15.sp)
+                            Text(n.title, fontWeight = FontWeight.Bold, color = Texte, fontSize = 15.sp,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Spacer(Modifier.height(3.dp))
-                            Text(n.body, color = TexteDoux, fontSize = 13.sp)
+                            // Aperçu : une seule ligne, le reste au clic.
+                            Text(n.body, color = TexteDoux, fontSize = 13.sp,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Spacer(Modifier.height(6.dp))
                             Text(fmtWhen(n.tsSec), color = Lavande, fontSize = 11.sp)
                         }
@@ -120,11 +132,34 @@ fun NotificationsScreen(onBack: () -> Unit) {
                             Modifier.size(36.dp).clip(CircleShape).background(RougeBadge.copy(alpha = 0.15f))
                                 .clickable { NotifStore.delete(ctx, n.id) },
                             contentAlignment = Alignment.Center
-                        ) { Text("🗑", fontSize = 16.sp) }
+                        ) { Icon(VIcons.Trash, contentDescription = "Supprimer", tint = RougeBadge, modifier = Modifier.size(18.dp)) }
                     }
                 }
             }
         }
+    }
+
+    // Fenêtre de détail : contenu complet de la notification cliquée.
+    val sel = selected
+    if (sel != null) {
+        AlertDialog(
+            onDismissRequest = { selected = null },
+            containerColor = CarteHaute,
+            title = { Text(sel.title, color = Texte, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(sel.body, color = TexteDoux, fontSize = 14.sp)
+                    Spacer(Modifier.height(10.dp))
+                    Text(fmtWhen(sel.tsSec), color = Lavande, fontSize = 11.sp)
+                }
+            },
+            confirmButton = { TextButton(onClick = { selected = null }) { Text("Fermer") } },
+            dismissButton = {
+                TextButton(onClick = { NotifStore.delete(ctx, sel.id); selected = null }) {
+                    Text("Supprimer", color = RougeBadge)
+                }
+            }
+        )
     }
 }
 
