@@ -25,6 +25,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.monchamp.verusfarm.AuthState
 import com.monchamp.verusfarm.Checks
+import com.monchamp.verusfarm.GameApi
 import com.monchamp.verusfarm.HashPoint
 import com.monchamp.verusfarm.MiningUi
 import com.monchamp.verusfarm.PoolStats
@@ -109,10 +111,18 @@ fun MainScreen(
     // Écran secondaire ouvert par-dessus les onglets : null | "notifications" | "more" | "profil"
     var overlay by rememberSaveable { mutableStateOf<String?>(null) }
     var showMoreSheet by rememberSaveable { mutableStateOf(false) }
+    var showGameSheet by rememberSaveable { mutableStateOf(false) }
+    var playingGame by rememberSaveable { mutableStateOf<String?>(null) }
+    var gameReloadKey by rememberSaveable { mutableStateOf(0) }
     val sheetState = rememberModalBottomSheetState()
 
-    BackHandler(enabled = overlay != null || tab != 0) {
-        if (overlay != null) overlay = null else tab = 0
+    // Détecte la devise locale (via l'adresse IP) une seule fois, après connexion.
+    LaunchedEffect(Unit) { GameApi.ensureLocale(ctx) }
+
+    BackHandler(enabled = playingGame != null || overlay != null || tab != 0) {
+        if (playingGame != null) { playingGame = null; gameReloadKey++ }
+        else if (overlay != null) overlay = null
+        else tab = 0
     }
 
     Column(
@@ -122,6 +132,9 @@ fun MainScreen(
             .systemBarsPadding()
     ) {
         Box(Modifier.weight(1f)) {
+            if (playingGame != null) {
+                GamePlayScreen(playingGame!!, onBack = { playingGame = null; gameReloadKey++ })
+            } else {
             when (overlay) {
                 "notifications" -> NotificationsScreen(onBack = { overlay = null })
                 "more" -> Column(Modifier.fillMaxSize()) {
@@ -148,7 +161,13 @@ fun MainScreen(
                     Box(Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 12.dp)) {
                         BellButton(onClick = { overlay = "notifications" })
                     }
+                    // Bouton flottant « jeux » : juste au-dessus de la barre, à droite,
+                    // sans recouvrir les boutons du menu.
+                    GameFab(
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 14.dp)
+                    ) { showGameSheet = true }
                 }
+            }
             }
         }
         BottomBar(tab) { i ->
@@ -178,6 +197,15 @@ fun MainScreen(
                 }
             }
         }
+    }
+
+    // Fenêtre « jeux » ouverte par le bouton flottant
+    if (showGameSheet) {
+        GameHubSheet(
+            reloadKey = gameReloadKey,
+            onDismiss = { showGameSheet = false },
+            onOpenGame = { key -> showGameSheet = false; overlay = null; playingGame = key }
+        )
     }
 }
 
