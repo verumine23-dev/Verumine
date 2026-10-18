@@ -3,6 +3,8 @@ package com.monchamp.verusfarm.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,14 +30,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,6 +52,7 @@ import com.monchamp.verusfarm.HashPoint
 import com.monchamp.verusfarm.MiningUi
 import com.monchamp.verusfarm.PoolStats
 import com.monchamp.verusfarm.PowerMode
+import com.monchamp.verusfarm.Supa
 import com.monchamp.verusfarm.Prefs
 
 // Informations sur cet appareil
@@ -185,13 +192,14 @@ fun MainScreen(
             Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 28.dp)) {
                 Text("Plus", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Texte,
                     modifier = Modifier.padding(bottom = 10.dp))
-                SheetRow(VIcons.Bell, "Notifications") { showMoreSheet = false; overlay = "notifications" }
-                SheetRow(VIcons.Group, "Parrainage & filleuls") { showMoreSheet = false; overlay = null; tab = 3 }
-                SheetRow(VIcons.Person, "Profil") { showMoreSheet = false; overlay = "profil" }
-                SheetRow(VIcons.Settings, "Réglages & autorisations") { showMoreSheet = false; overlay = "more" }
-                SheetRow(VIcons.Trophy, "Classement", enabled = false) {}
-                SheetRow(VIcons.Target, "Missions", enabled = false) {}
-                SheetRow(VIcons.Logout, "Déconnexion") {
+                SheetRow(VIcons.Game, "Jeux", tint = Corail) { showMoreSheet = false; overlay = null; playingGame = null; showGameSheet = true }
+                SheetRow(VIcons.Bell, "Notifications", tint = Ambre) { showMoreSheet = false; overlay = "notifications" }
+                SheetRow(VIcons.Group, "Parrainage & filleuls", tint = Menthe) { showMoreSheet = false; overlay = null; tab = 3 }
+                SheetRow(VIcons.Person, "Profil", tint = Lavande) { showMoreSheet = false; overlay = "profil" }
+                SheetRow(VIcons.Settings, "Réglages & autorisations", tint = Neon) { showMoreSheet = false; overlay = "more" }
+                SheetRow(VIcons.Trophy, "Classement", tint = Ambre, enabled = false) {}
+                SheetRow(VIcons.Target, "Missions", tint = Menthe, enabled = false) {}
+                SheetRow(VIcons.Logout, "Déconnexion", tint = Corail) {
                     showMoreSheet = false; overlay = null
                     Prefs.clearSession(ctx); AuthState.setLoggedIn(false)
                 }
@@ -211,7 +219,7 @@ fun MainScreen(
 
 // Ligne du menu « Plus »
 @Composable
-private fun SheetRow(icon: ImageVector, label: String, enabled: Boolean = true, onClick: () -> Unit) {
+private fun SheetRow(icon: ImageVector, label: String, tint: Color = Lavande, enabled: Boolean = true, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -220,7 +228,13 @@ private fun SheetRow(icon: ImageVector, label: String, enabled: Boolean = true, 
             .padding(vertical = 12.dp, horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = if (enabled) Lavande else Brume, modifier = Modifier.size(22.dp))
+        Box(
+            Modifier.size(34.dp).clip(RoundedCornerShape(10.dp))
+                .background((if (enabled) tint else Brume).copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = if (enabled) tint else Brume, modifier = Modifier.size(20.dp))
+        }
         Spacer(Modifier.width(14.dp))
         Text(label, color = if (enabled) Texte else Brume, fontSize = 15.sp,
             fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
@@ -246,25 +260,94 @@ private fun BackRow(title: String, onBack: () -> Unit) {
     }
 }
 
-// Page Profil (compte + déconnexion)
+// Page Profil : informations du compte + solde jeux + déconnexion.
 @Composable
 private fun ProfilScreen(email: String, onBack: () -> Unit, onLogout: () -> Unit) {
+    val ctx = LocalContext.current
+    val clip = LocalClipboardManager.current
+    var profile by remember { mutableStateOf<Supa.Profile?>(null) }
+    var gstate by remember { mutableStateOf<GameApi.State?>(null) }
+
+    LaunchedEffect(Unit) {
+        profile = Supa.fetchProfileSummary(ctx)
+        gstate = GameApi.getState(ctx)
+    }
+
     Column(Modifier.fillMaxSize()) {
         BackRow("Profil") { onBack() }
-        Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // En-tête : avatar + nom + email
             NeonCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        Modifier.size(56.dp).clip(CircleShape).background(Violet.copy(alpha = 0.25f)),
+                        Modifier.size(60.dp).clip(CircleShape).background(Violet.copy(alpha = 0.25f)),
                         contentAlignment = Alignment.Center
-                    ) { Icon(VIcons.Person, null, tint = Lavande, modifier = Modifier.size(28.dp)) }
+                    ) { Icon(VIcons.Person, null, tint = Lavande, modifier = Modifier.size(30.dp)) }
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("Mon compte", fontWeight = FontWeight.Bold, color = Texte, fontSize = 16.sp)
-                        Text(if (email.isNotBlank()) email else "Compte Verumine", fontSize = 13.sp, color = TexteDoux)
+                        Text(
+                            profile?.fullName?.ifBlank { "Mon compte" } ?: "Mon compte",
+                            fontWeight = FontWeight.Bold, color = Texte, fontSize = 18.sp
+                        )
+                        Text(if (email.isNotBlank()) email else "—", fontSize = 13.sp, color = TexteDoux)
+                        if (profile?.isAdmin == true)
+                            Text("★ Administrateur", fontSize = 11.sp, color = Ambre, fontWeight = FontWeight.Bold)
                     }
                 }
             }
+
+            // Informations du compte
+            NeonCard {
+                SectionTitle("Informations du compte")
+                InfoRow("Nom", profile?.fullName?.ifBlank { "—" } ?: "—")
+                InfoRow("Email", if (email.isNotBlank()) email else "—")
+                InfoRow("Pays", profile?.country?.ifBlank { "—" } ?: "—")
+                InfoRow("Devise", profile?.currency ?: "—")
+            }
+
+            // Code de parrainage (copiable)
+            val code = profile?.referralCode ?: ""
+            if (code.isNotBlank()) {
+                NeonCard {
+                    SectionTitle("Mon code de parrainage")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(CarteHaute)
+                                .padding(14.dp)
+                        ) { Text(code, color = Lavande, fontWeight = FontWeight.Bold, fontSize = 18.sp) }
+                        Spacer(Modifier.width(10.dp))
+                        Box(
+                            Modifier.size(46.dp).clip(RoundedCornerShape(12.dp)).background(Violet.copy(alpha = 0.22f))
+                                .clickable { clip.setText(AnnotatedString(code)) },
+                            contentAlignment = Alignment.Center
+                        ) { Icon(VIcons.Copy, null, tint = Lavande, modifier = Modifier.size(20.dp)) }
+                    }
+                    Text("Partage-le : tes filleuls le saisissent à l'inscription.", fontSize = 12.sp, color = Brume)
+                }
+            }
+
+            // Solde des jeux
+            NeonCard {
+                SectionTitle("Solde jeux")
+                val g = gstate
+                if (g == null) {
+                    Text("Indisponible — connecte-toi pour le charger.", fontSize = 13.sp, color = TexteDoux)
+                } else {
+                    Text(
+                        GameApi.formatLocal(g.balanceCents, g.currency, g.fxPerUsd),
+                        fontSize = 24.sp, fontWeight = FontWeight.Black, color = Menthe
+                    )
+                    Text(
+                        "≈ ${GameApi.formatUsd(g.balanceCents)} • retrait possible dès 100 \$",
+                        fontSize = 12.sp, color = TexteDoux
+                    )
+                }
+            }
+
+            // Session / déconnexion
             NeonCard {
                 SectionTitle("Session")
                 Text(
@@ -283,6 +366,7 @@ private fun ProfilScreen(email: String, onBack: () -> Unit, onLogout: () -> Unit
                     Text("Se déconnecter", fontWeight = FontWeight.Bold)
                 }
             }
+            Spacer(Modifier.height(30.dp))
         }
     }
 }
