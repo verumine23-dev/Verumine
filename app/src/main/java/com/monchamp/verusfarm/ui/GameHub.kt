@@ -48,7 +48,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.monchamp.verusfarm.GameApi
+import com.monchamp.verusfarm.Heartbeat
 import kotlinx.coroutines.launch
+
+// Catalogue affiché TOUJOURS (image + nom), même hors ligne ou si le serveur ne répond pas.
+private data class GameDef(val key: String, val name: String, val emoji: String)
+private val GAME_CATALOG = listOf(
+    GameDef("mot", "Devinette de mots", "🔤"),
+    GameDef("quiz", "Quiz des sujets", "❓"),
+    GameDef("calcul", "Calcul Éclair", "⚡"),
+    GameDef("suite", "Suite Logique", "🔢")
+)
 
 /**
  * Bouton flottant « jeux » : une pastille animée (petite secousse répétée pour
@@ -114,6 +124,7 @@ fun GameHubSheet(
     var state by remember { mutableStateOf<GameApi.State?>(null) }
     var loading by remember { mutableStateOf(true) }
     var showWithdraw by remember { mutableStateOf(false) }
+    var showOffline by remember { mutableStateOf(false) }
     var banner by remember { mutableStateOf<String?>(null) }
 
     suspend fun reload() {
@@ -150,7 +161,11 @@ fun GameHubSheet(
                 if (loading) {
                     Text("…", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Texte)
                 } else if (s == null) {
-                    Text("Connexion requise", fontSize = 15.sp, color = Corail)
+                    Text("— —", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Brume)
+                    Text(
+                        "Solde indisponible : connecte-toi pour le charger. Tu peux déjà voir les jeux ci-dessous.",
+                        fontSize = 12.sp, color = TexteDoux
+                    )
                 } else {
                     Text(
                         GameApi.formatLocal(s.balanceCents, s.currency, s.fxPerUsd),
@@ -204,23 +219,48 @@ fun GameHubSheet(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // ---- Grille des jeux (2 colonnes) ----
-            val games = s?.games ?: emptyList()
-            val rows = games.chunked(2)
-            rows.forEach { pair ->
+            // ---- Grille des jeux (2 colonnes) : TOUJOURS visible ----
+            GAME_CATALOG.chunked(2).forEach { pair ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    pair.forEach { g ->
+                    pair.forEach { def ->
+                        val info = s?.games?.firstOrNull { it.key == def.key }
                         GameCard(
-                            g = g,
+                            def = def,
+                            info = info,
                             locked = locked,
                             modifier = Modifier.weight(1f),
-                            onClick = { if (!locked && !g.closed) onOpenGame(g.key) }
+                            onClick = {
+                                // Les jeux sont visibles, mais on ne joue qu'en ligne.
+                                if (!Heartbeat.hasInternet(ctx)) {
+                                    showOffline = true
+                                } else if (!locked && info?.closed != true) {
+                                    onOpenGame(def.key)
+                                }
+                            }
                         )
                     }
                     if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
         }
+    }
+
+    if (showOffline) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showOffline = false },
+            containerColor = CarteHaute,
+            title = { Text("Pas de connexion", color = Texte) },
+            text = {
+                Text(
+                    "Connecte-toi à internet ou attends la connexion pour commencer à jouer. " +
+                        "Les jeux restent visibles, mais une manche a besoin du réseau.",
+                    color = TexteDoux, fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { showOffline = false }) { Text("Compris") }
+            }
+        )
     }
 
     if (showWithdraw && state != null) {
@@ -238,12 +278,15 @@ fun GameHubSheet(
 
 @Composable
 private fun GameCard(
-    g: GameApi.GameInfo,
+    def: GameDef,
+    info: GameApi.GameInfo?,
     locked: Boolean,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val dim = locked || g.closed
+    val closed = info?.closed == true
+    // La carte reste colorée et cliquable ; seul un jeu "fermé" ou en pause est atténué.
+    val dim = locked || closed
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(18.dp))
@@ -253,20 +296,21 @@ private fun GameCard(
                 Brush.verticalGradient(listOf(Violet.copy(alpha = if (dim) 0.25f else 0.75f), Bord.copy(alpha = 0.5f))),
                 RoundedCornerShape(18.dp)
             )
-            .clickable(enabled = !dim, onClick = onClick)
+            .clickable(onClick = onClick)
             .padding(14.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Text(g.emoji, fontSize = 34.sp, modifier = Modifier.graphicsLayer { alpha = if (dim) 0.4f else 1f })
+        Text(def.emoji, fontSize = 34.sp, modifier = Modifier.graphicsLayer { alpha = if (dim) 0.4f else 1f })
         Text(
-            g.name, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+            def.name, fontSize = 14.sp, fontWeight = FontWeight.Bold,
             color = if (dim) Brume else Texte, textAlign = TextAlign.Center, maxLines = 2
         )
-        if (g.closed) {
-            Text("Terminé — change de jeu", fontSize = 11.sp, color = Ambre, textAlign = TextAlign.Center)
-        } else {
-            Text("${g.remaining} manche(s) restante(s)", fontSize = 11.sp, color = Menthe)
+        when {
+            locked -> Text("En pause (24 h)", fontSize = 11.sp, color = Ambre, textAlign = TextAlign.Center)
+            closed -> Text("Terminé — change de jeu", fontSize = 11.sp, color = Ambre, textAlign = TextAlign.Center)
+            info != null -> Text("${info.remaining} manche(s) restante(s)", fontSize = 11.sp, color = Menthe)
+            else -> Text("Jouer", fontSize = 11.sp, color = Menthe)
         }
     }
 }
