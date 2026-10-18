@@ -178,6 +178,36 @@ object Supa {
         } catch (e: Exception) { null }
     }
 
+    // ---------- Résumé du profil (pour la page Profil) ----------
+    data class Profile(
+        val fullName: String, val referralCode: String,
+        val currency: String, val country: String, val isAdmin: Boolean
+    )
+
+    suspend fun fetchProfileSummary(ctx: Context): Profile? = withContext(Dispatchers.IO) {
+        val token = Prefs.accessToken(ctx)
+        val uid = Prefs.userId(ctx)
+        if (token.isBlank() || uid.isBlank()) return@withContext null
+        val (code, text) = request(
+            "GET",
+            "/rest/v1/profiles?select=full_name,referral_code,currency,country,is_admin&id=eq.$uid",
+            null, token
+        )
+        if (code !in 200..299) return@withContext null
+        try {
+            val arr = org.json.JSONArray(text)
+            if (arr.length() == 0) return@withContext null
+            val o = arr.getJSONObject(0)
+            Profile(
+                fullName = o.optString("full_name"),
+                referralCode = o.optString("referral_code"),
+                currency = o.optString("currency", "USD"),
+                country = o.optString("country"),
+                isAdmin = o.optBoolean("is_admin", false)
+            )
+        } catch (e: Exception) { null }
+    }
+
     // ---------- Enregistrer la session renvoyée par Supabase ----------
     private fun saveSession(ctx: Context, body: String) {
         try {
