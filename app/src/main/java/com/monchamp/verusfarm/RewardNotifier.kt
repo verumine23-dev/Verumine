@@ -135,6 +135,24 @@ object RewardNotifier {
         }
     }
 
+    // Notification « punch » générique pour les jeux : bannière + enregistrement
+    // dans la page Notifications de l'app (titre + contenu).
+    fun gamePunch(ctx: Context, title: String, text: String) {
+        ensureChannel(ctx)
+        try {
+            (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .notify(1010 + (title.hashCode() and 0x7), build(ctx, title, text))
+        } catch (e: Exception) {
+            Log.w(TAG, "gamePunch", e)
+        }
+        try {
+            NotifStore.load(ctx)             // repart des notifications déjà stockées
+            NotifStore.add(ctx, title, text, "GAME")
+        } catch (e: Exception) {
+            Log.w(TAG, "gamePunch store", e)
+        }
+    }
+
     // Programme une alarme pour le moment où l'énergie sera pleine.
     fun scheduleEnergyFull(ctx: Context) {
         try {
