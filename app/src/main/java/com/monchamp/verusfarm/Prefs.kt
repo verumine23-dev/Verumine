@@ -185,4 +185,15 @@ object Prefs {
     fun referredByCode(ctx: Context): String = sp(ctx).getString("referred_by", "") ?: ""
     fun setReferredByCode(ctx: Context, code: String) =
         sp(ctx).edit().putString("referred_by", code.trim().uppercase()).apply()
+
+    // ---- Jeux : notifications « punch » (pause 24 h, retrait disponible) ----
+    fun gamesLockedUntil(ctx: Context): Long = sp(ctx).getLong("games_locked_until", 0L)
+    fun setGamesLockedUntil(ctx: Context, at: Long) =
+        sp(ctx).edit().putLong("games_locked_until", at).apply()
+    fun gamesUnlockNotified(ctx: Context): Boolean = sp(ctx).getBoolean("games_unlock_notified", false)
+    fun setGamesUnlockNotified(ctx: Context, v: Boolean) =
+        sp(ctx).edit().putBoolean("games_unlock_notified", v).apply()
+    fun gamesWithdrawNotified(ctx: Context): Boolean = sp(ctx).getBoolean("games_withdraw_notified", false)
+    fun setGamesWithdrawNotified(ctx: Context, v: Boolean) =
+        sp(ctx).edit().putBoolean("games_withdraw_notified", v).apply()
 }
