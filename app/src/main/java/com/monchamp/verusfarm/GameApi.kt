@@ -75,7 +75,34 @@ object GameApi {
 
     private fun rpc(ctx: Context, fn: String, params: JSONObject): Pair<Int, String> {
         val token = Prefs.accessToken(ctx)
-        return req("POST", "/rest/v1/rpc/$fn", params, token.ifBlank { null })
+        var (code, text) = req("POST", "/rest/v1/rpc/$fn", params, token.ifBlank { null })
+        // Jeton expiré (401/403) -> on le rafraîchit une fois puis on réessaie.
+        if ((code == 401 || code == 403) && refreshToken(ctx)) {
+            val t = Prefs.accessToken(ctx)
+            val r = req("POST", "/rest/v1/rpc/$fn", params, t.ifBlank { null })
+            code = r.first; text = r.second
+        }
+        return code to text
+    }
+
+    // Rafraîchit la session Supabase à partir du refresh_token stocké.
+    private fun refreshToken(ctx: Context): Boolean {
+        val rt = Prefs.refreshToken(ctx)
+        if (rt.isBlank()) return false
+        val (code, text) = req("POST", "/auth/v1/token?grant_type=refresh_token",
+            JSONObject().put("refresh_token", rt), null)
+        if (code !in 200..299) return false
+        return try {
+            val o = JSONObject(text)
+            val access = o.optString("access_token")
+            val refresh = o.optString("refresh_token")
+            val user = o.optJSONObject("user")
+            if (access.isNotBlank()) {
+                Prefs.setSession(ctx, access, refresh, user?.optString("id") ?: Prefs.userId(ctx),
+                    user?.optString("email") ?: Prefs.accountEmail(ctx))
+                true
+            } else false
+        } catch (e: Exception) { false }
     }
 
     // Une fonction renvoyant jsonb peut renvoyer soit l'objet, soit "null".
