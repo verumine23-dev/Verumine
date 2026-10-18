@@ -8,25 +8,42 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 
-// Notifications NON silencieuses : énergie de tapotage pleine, nouvelle récompense.
+// Notifications NON silencieuses : SON + vibration + bannière.
 object RewardNotifier {
 
-    private const val CHANNEL = "rewards"
+    // Nouveau canal (v2) : l'ancien « rewards » avait été créé sans son et un canal
+    // Android ne peut plus changer de son une fois créé — on en recrée donc un propre.
+    private const val CHANNEL = "verumine_alerts_v2"
     private const val NOTIF_ENERGY = 1001
     private const val NOTIF_REWARD = 1002
     private const val TAG = "RewardNotifier"
 
     fun ensureChannel(ctx: Context) {
         try {
-            // IMPORTANCE_HIGH = son + bannière (non silencieux)
-            val ch = NotificationChannel(CHANNEL, "Récompenses et tapotage", NotificationManager.IMPORTANCE_HIGH)
-            ch.description = "Signale quand l'énergie est pleine ou qu'une récompense est disponible."
+            val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            // On supprime l'ancien canal silencieux s'il existe.
+            try { nm.deleteNotificationChannel("rewards") } catch (_: Exception) {}
+
+            // IMPORTANCE_HIGH = son + bannière (heads-up, non silencieux).
+            val ch = NotificationChannel(CHANNEL, "Alertes Verumine", NotificationManager.IMPORTANCE_HIGH)
+            ch.description = "Sonnerie et vibration pour le minage, les jeux et les récompenses."
             ch.enableVibration(true)
-            (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(ch)
+            ch.vibrationPattern = longArrayOf(0, 250, 150, 250)
+            ch.enableLights(true)
+            // Sonnerie de notification par défaut du téléphone.
+            val sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val attrs = AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .build()
+            ch.setSound(sound, attrs)
+            nm.createNotificationChannel(ch)
         } catch (e: Exception) {
             Log.w(TAG, "channel", e)
         }
@@ -45,6 +62,8 @@ object RewardNotifier {
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
+            // Sonnerie aussi sur Android < 8 (où le canal n'existe pas).
+            .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
             .build()
     }
 
