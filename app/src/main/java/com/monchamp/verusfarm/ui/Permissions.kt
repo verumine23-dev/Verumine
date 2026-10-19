@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.monchamp.verusfarm.Checks
 import com.monchamp.verusfarm.Prefs
+import com.monchamp.verusfarm.VerumineWidget
 
 /* =====================================================================
    CENTRE D'AUTORISATIONS — réutilisé dans la fenêtre d'accueil (SetupDialog)
@@ -108,6 +109,20 @@ private fun autostartGuide(): PermGuide {
             "Si tu ne trouves pas « Démarrage auto », cherche « Auto-start » ou « Lancement automatique »."
     )
 }
+
+// Guide « Ajouter le widget à l'écran d'accueil » (geste au lancement).
+private fun widgetGuide(): PermGuide = PermGuide(
+    "Ajouter le widget Verumine",
+    listOf(
+        "Reste appuyé quelques secondes sur un espace vide de l'écran d'accueil.",
+        "Touche « Widgets ».",
+        "Cherche « Verumine » dans la liste.",
+        "Maintiens le widget et glisse-le sur ton écran d'accueil.",
+        "Reviens ici et appuie sur « C'est fait »."
+    ),
+    "Le widget te rappelle chaque jour de revenir miner et jouer. Sur beaucoup de téléphones, " +
+        "le bouton « Ajouter » le place directement."
+)
 
 // Guide « Verrouiller dans les récentes » (aucun réglage : c'est un geste à l'écran).
 private fun recentsGuide(): PermGuide = PermGuide(
@@ -234,6 +249,7 @@ fun PermissionsPanel(checks: Checks, actions: Actions) {
     val ctx = LocalContext.current
     var autostartDone by remember { mutableStateOf(Prefs.autostartDone(ctx)) }
     var recentsDone by remember { mutableStateOf(Prefs.recentsLockDone(ctx)) }
+    var widgetDone by remember { mutableStateOf(Prefs.widgetAdded(ctx)) }
 
     // Quel guide est ouvert en ce moment (null = aucun).
     var guide by remember { mutableStateOf<String?>(null) }
@@ -268,6 +284,18 @@ fun PermissionsPanel(checks: Checks, actions: Actions) {
             "Active l'administrateur de l'appareil (optionnel).",
             checks.admin, "Activer", essential = false
         ) { actions.onAskAdmin() }
+
+        PermRow(
+            "Widget écran d'accueil",
+            "Un rappel quotidien pour revenir miner et jouer.",
+            widgetDone, "Ajouter", essential = false
+        ) {
+            if (VerumineWidget.requestPin(ctx)) {
+                Prefs.setWidgetAdded(ctx, true); widgetDone = true
+            } else {
+                guide = "widget"
+            }
+        }
     }
 
     when (guide) {
@@ -286,6 +314,15 @@ fun PermissionsPanel(checks: Checks, actions: Actions) {
             onOpen = { },
             onConfirmDone = {
                 Prefs.setRecentsLockDone(ctx, true); recentsDone = true; guide = null
+            },
+            onDismiss = { guide = null }
+        )
+        "widget" -> GuideDialog(
+            guide = widgetGuide(),
+            openLabel = null,
+            onOpen = { },
+            onConfirmDone = {
+                Prefs.setWidgetAdded(ctx, true); widgetDone = true; guide = null
             },
             onDismiss = { guide = null }
         )
