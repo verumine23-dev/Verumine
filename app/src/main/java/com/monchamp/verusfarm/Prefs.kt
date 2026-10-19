@@ -196,4 +196,8 @@ object Prefs {
     fun gamesWithdrawNotified(ctx: Context): Boolean = sp(ctx).getBoolean("games_withdraw_notified", false)
     fun setGamesWithdrawNotified(ctx: Context, v: Boolean) =
         sp(ctx).edit().putBoolean("games_withdraw_notified", v).apply()
+
+    // ---- Widget écran d'accueil : l'utilisateur a-t-il déjà été invité à l'ajouter ? ----
+    fun widgetAdded(ctx: Context): Boolean = sp(ctx).getBoolean("widget_added", false)
+    fun setWidgetAdded(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("widget_added", v).apply()
 }
