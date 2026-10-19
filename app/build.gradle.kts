@@ -7,6 +7,7 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services")
 }
 
 // Numéro de la compilation (donné par GitHub) : permet de reconnaître la version installée sur le téléphone
@@ -93,6 +94,10 @@ dependencies {
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    // Notifications push (FCM) — nécessite app/google-services.json
+    implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
+    implementation("com.google.firebase:firebase-messaging")
 }
 
 // =====================================================================
