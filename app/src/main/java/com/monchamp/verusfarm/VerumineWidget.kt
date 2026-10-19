@@ -63,6 +63,16 @@ class VerumineWidget : AppWidgetProvider() {
             "Lance le minage en un clin d'œil et repars gagnant.",
             "Vérifie combien tu as gagné aujourd'hui sur Verumine."
         )
+        // Mascotte selon l'humeur du message du jour (res/drawable/widget_mascot_*.png).
+        private val MOODS = listOf(
+            "widget_mascot_sad",    // n'a pas miné
+            "widget_mascot_cheer",  // garde ta série
+            "widget_mascot_happy",  // récompenses
+            "widget_mascot_cheer",  // jeux
+            "widget_mascot_happy",  // surprise
+            "widget_mascot_cheer",  // lance le minage
+            "widget_mascot_happy"   // solde du jour
+        )
 
         private fun todayIndex(): Int {
             val day = System.currentTimeMillis() / 86_400_000L     // numéro de jour (UTC)
@@ -86,6 +96,9 @@ class VerumineWidget : AppWidgetProvider() {
                 val views = RemoteViews(context.packageName, R.layout.widget_verumine)
                 views.setTextViewText(R.id.widget_title, TITLES[i])
                 views.setTextViewText(R.id.widget_message, MESSAGES[i])
+                // Mascotte du jour (selon l'humeur) ; repli sur le logo si l'image manque.
+                val moodId = context.resources.getIdentifier(MOODS[i], "drawable", context.packageName)
+                views.setImageViewResource(R.id.widget_mascot, if (moodId != 0) moodId else R.mipmap.ic_launcher)
 
                 // Appui n'importe où = ouvrir l'application.
                 val open = Intent(context, MainActivity::class.java).apply {
