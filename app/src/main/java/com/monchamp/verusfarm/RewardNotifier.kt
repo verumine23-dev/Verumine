@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -17,18 +18,28 @@ import androidx.core.app.NotificationCompat
 // Notifications NON silencieuses : SON + vibration + bannière.
 object RewardNotifier {
 
-    // Nouveau canal (v2) : l'ancien « rewards » avait été créé sans son et un canal
-    // Android ne peut plus changer de son une fois créé — on en recrée donc un propre.
-    private const val CHANNEL = "verumine_alerts_v2"
+    // Canal v3 : utilise NOTRE sonnerie (res/raw/verumine_notif). Comme un canal ne peut
+    // plus changer de son une fois créé, on passe à un nouvel identifiant et on supprime
+    // les anciens canaux.
+    private const val CHANNEL = "verumine_alerts_v3"
     private const val NOTIF_ENERGY = 1001
     private const val NOTIF_REWARD = 1002
     private const val TAG = "RewardNotifier"
 
+    // Notre sonnerie personnalisée (res/raw/verumine_notif.ogg) ; repli sur la sonnerie
+    // système uniquement si le fichier n'est pas encore présent.
+    private fun customSound(ctx: Context): Uri {
+        val id = ctx.resources.getIdentifier("verumine_notif", "raw", ctx.packageName)
+        return if (id != 0) Uri.parse("android.resource://${ctx.packageName}/$id")
+        else RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+    }
+
     fun ensureChannel(ctx: Context) {
         try {
             val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            // On supprime l'ancien canal silencieux s'il existe.
+            // On supprime les anciens canaux (son par défaut) s'ils existent.
             try { nm.deleteNotificationChannel("rewards") } catch (_: Exception) {}
+            try { nm.deleteNotificationChannel("verumine_alerts_v2") } catch (_: Exception) {}
 
             // IMPORTANCE_HIGH = son + bannière (heads-up, non silencieux).
             val ch = NotificationChannel(CHANNEL, "Alertes Verumine", NotificationManager.IMPORTANCE_HIGH)
@@ -36,13 +47,11 @@ object RewardNotifier {
             ch.enableVibration(true)
             ch.vibrationPattern = longArrayOf(0, 250, 150, 250)
             ch.enableLights(true)
-            // Sonnerie de notification par défaut du téléphone.
-            val sound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             val attrs = AudioAttributes.Builder()
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .setUsage(AudioAttributes.USAGE_NOTIFICATION)
                 .build()
-            ch.setSound(sound, attrs)
+            ch.setSound(customSound(ctx), attrs)
             nm.createNotificationChannel(ch)
         } catch (e: Exception) {
             Log.w(TAG, "channel", e)
@@ -61,9 +70,9 @@ object RewardNotifier {
             .setContentIntent(open)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setDefaults(NotificationCompat.DEFAULT_ALL)
-            // Sonnerie aussi sur Android < 8 (où le canal n'existe pas).
-            .setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))
+            .setDefaults(NotificationCompat.DEFAULT_VIBRATE or NotificationCompat.DEFAULT_LIGHTS)
+            // Notre sonnerie (aussi sur Android < 8 où le canal n'existe pas).
+            .setSound(customSound(ctx))
             .build()
     }
 
