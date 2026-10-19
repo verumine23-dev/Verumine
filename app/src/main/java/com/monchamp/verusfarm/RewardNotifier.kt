@@ -181,6 +181,18 @@ object RewardNotifier {
         }
     }
 
+    // Toast simple (bannière + son) SANS stocker — utilisé pour les messages serveur
+    // déjà ajoutés à la page Notifications par ailleurs.
+    fun toast(ctx: Context, title: String, text: String) {
+        ensureChannel(ctx)
+        try {
+            (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .notify(2000 + (title.hashCode() and 0x3FF), build(ctx, title, text))
+        } catch (e: Exception) {
+            Log.w(TAG, "toast", e)
+        }
+    }
+
     // Programme une alarme pour le moment où l'énergie sera pleine.
     fun scheduleEnergyFull(ctx: Context) {
         try {
