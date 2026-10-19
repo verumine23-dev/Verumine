@@ -71,6 +71,19 @@
             android:name=".HeartbeatReceiver"
             android:exported="false" />
 
+        <!-- Widget écran d'accueil : rappel quotidien (style Duolingo) -->
+        <receiver
+            android:name=".VerumineWidget"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.monchamp.verusfarm.WIDGET_REFRESH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_verumine_info" />
+        </receiver>
+
         <!-- Administrateur de l'appareil -->
         <receiver
             android:name=".AdminReceiver"
