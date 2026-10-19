@@ -208,6 +208,77 @@ object Supa {
         } catch (e: Exception) { null }
     }
 
+    // ---------- Enregistrer l'appareil (lien worker ↔ utilisateur, pour l'admin) ----------
+    suspend fun registerDevice(ctx: Context): Boolean = withContext(Dispatchers.IO) {
+        val token = Prefs.accessToken(ctx)
+        if (token.isBlank()) return@withContext false
+        val worker = DeviceIdentity.workerName(ctx)
+        val body = JSONObject()
+            .put("p_platform", "android")
+            .put("p_worker", worker)
+            .put("p_model", android.os.Build.MODEL ?: "")
+            .put("p_app_version", "")
+        val (code, _) = request("POST", "/rest/v1/rpc/register_device", body, token)
+        code in 200..299
+    }
+
+    // ---------- Rapporter le minage (calculs acceptés cumulés) pour les stats admin ----------
+    suspend fun reportMining(ctx: Context): Boolean = withContext(Dispatchers.IO) {
+        val token = Prefs.accessToken(ctx)
+        if (token.isBlank()) return@withContext false
+        val worker = DeviceIdentity.workerName(ctx)
+        val body = JSONObject()
+            .put("p_worker", worker)
+            .put("p_accepted", Prefs.acceptedShares(ctx))
+            .put("p_hashrate", 0)
+        val (code, _) = request("POST", "/rest/v1/rpc/report_mining", body, token)
+        code in 200..299
+    }
+
+    // ---------- Notifications venues du serveur (messages de l'admin) ----------
+    data class ServerNotif(val id: String, val title: String, val body: String, val kind: String, val tsSec: Long)
+
+    suspend fun fetchNotifications(ctx: Context): List<ServerNotif> = withContext(Dispatchers.IO) {
+        val token = Prefs.accessToken(ctx)
+        val uid = Prefs.userId(ctx)
+        if (token.isBlank() || uid.isBlank()) return@withContext emptyList()
+        val (code, text) = request(
+            "GET",
+            "/rest/v1/notifications?select=id,title,body,kind,created_at,link,button_label&user_id=eq.$uid&order=created_at.desc&limit=30",
+            null, token
+        )
+        if (code !in 200..299) return@withContext emptyList()
+        try {
+            val arr = org.json.JSONArray(text)
+            val out = ArrayList<ServerNotif>()
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                var body = o.optString("body")
+                val link = o.optString("link")
+                val label = o.optString("button_label")
+                if (link.isNotBlank()) body += "\n\n👉 " + (if (label.isNotBlank()) "$label : " else "") + link
+                out.add(
+                    ServerNotif(
+                        id = o.optString("id"),
+                        title = o.optString("title"),
+                        body = body,
+                        kind = o.optString("kind", "ADMIN"),
+                        tsSec = parseIso(o.optString("created_at"))
+                    )
+                )
+            }
+            out
+        } catch (e: Exception) { emptyList() }
+    }
+
+    private fun parseIso(s: String): Long = try {
+        // "2026-10-19T12:00:00.123+00:00" → secondes epoch (approx, suffit pour l'affichage)
+        val clean = s.substringBefore('.').substringBefore('+').substringBefore('Z').trim()
+        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+        fmt.timeZone = java.util.TimeZone.getTimeZone("UTC")
+        (fmt.parse(clean)?.time ?: System.currentTimeMillis()) / 1000L
+    } catch (e: Exception) { System.currentTimeMillis() / 1000L }
+
     // ---------- Enregistrer la session renvoyée par Supabase ----------
     private fun saveSession(ctx: Context, body: String) {
         try {
