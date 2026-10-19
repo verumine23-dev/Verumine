@@ -79,6 +79,9 @@ object Heartbeat {
         schedule(ctx)                 // réarme le prochain battement, quoi qu'il arrive
         NetworkWake.register(ctx)     // se remet à l'écoute du retour d'internet
 
+        // Synchro serveur en arrière-plan (appareil, minage, messages admin).
+        Thread { ServerSync.runBlockingSafe(ctx) }.start()
+
         val now = System.currentTimeMillis()
 
         // Jeux : quand la pause de 24 h est terminée, on « punch » l'utilisateur
