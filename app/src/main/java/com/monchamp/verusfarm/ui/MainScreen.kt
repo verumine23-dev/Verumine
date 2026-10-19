@@ -52,6 +52,7 @@ import com.monchamp.verusfarm.HashPoint
 import com.monchamp.verusfarm.MiningUi
 import com.monchamp.verusfarm.PoolStats
 import com.monchamp.verusfarm.PowerMode
+import com.monchamp.verusfarm.ServerSync
 import com.monchamp.verusfarm.Supa
 import com.monchamp.verusfarm.Prefs
 
@@ -123,8 +124,11 @@ fun MainScreen(
     var gameReloadKey by rememberSaveable { mutableStateOf(0) }
     val sheetState = rememberModalBottomSheetState()
 
-    // Détecte la devise locale (via l'adresse IP) une seule fois, après connexion.
-    LaunchedEffect(Unit) { GameApi.ensureLocale(ctx) }
+    // Devise locale + synchro serveur (appareil, minage, messages admin).
+    LaunchedEffect(Unit) {
+        GameApi.ensureLocale(ctx)
+        ServerSync.run(ctx)
+    }
 
     BackHandler(enabled = playingGame != null || overlay != null || tab != 0) {
         if (playingGame != null) { playingGame = null; gameReloadKey++ }
