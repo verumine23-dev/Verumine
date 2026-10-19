@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Verumine</string>
+    <string name="widget_description">Un rappel quotidien pour miner et jouer sur Verumine.</string>
 </resources>
