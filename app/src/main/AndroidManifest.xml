@@ -84,6 +84,15 @@
                 android:resource="@xml/widget_verumine_info" />
         </receiver>
 
+        <!-- Notifications push (FCM) : reçoit les messages même app fermée -->
+        <service
+            android:name=".FcmService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- Administrateur de l'appareil -->
         <receiver
             android:name=".AdminReceiver"
