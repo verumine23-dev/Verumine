@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "627689665001",
+    "project_id": "verumine-e0769",
+    "storage_bucket": "verumine-e0769.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:627689665001:android:28ee8fd42fa56ee3db9b78",
+        "android_client_info": {
+          "package_name": "com.monchamp.verusfarm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyChk7KAN5C3-rAjkdpyVd5Z41eBSDCrLm8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
