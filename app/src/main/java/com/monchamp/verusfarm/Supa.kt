@@ -235,6 +235,15 @@ object Supa {
         code in 200..299
     }
 
+    // ---------- Enregistrer le jeton push (FCM) pour recevoir les messages app fermée ----------
+    suspend fun savePushToken(ctx: Context, token: String): Boolean = withContext(Dispatchers.IO) {
+        val bearer = Prefs.accessToken(ctx)
+        if (bearer.isBlank() || token.isBlank()) return@withContext false
+        val body = JSONObject().put("p_token", token).put("p_platform", "android")
+        val (code, _) = request("POST", "/rest/v1/rpc/save_push_token", body, bearer)
+        code in 200..299
+    }
+
     // ---------- Notifications venues du serveur (messages de l'admin) ----------
     data class ServerNotif(val id: String, val title: String, val body: String, val kind: String, val tsSec: Long)
 
