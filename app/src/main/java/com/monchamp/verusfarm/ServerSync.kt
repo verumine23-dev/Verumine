@@ -15,6 +15,7 @@ object ServerSync {
 
     suspend fun run(ctx: android.content.Context) {
         if (Prefs.accessToken(ctx).isBlank()) return
+        try { Push.register(ctx) } catch (_: Exception) {}        // jeton push FCM
         try { Supa.registerDevice(ctx) } catch (_: Exception) {}
         try { Supa.reportMining(ctx) } catch (_: Exception) {}
         try {
