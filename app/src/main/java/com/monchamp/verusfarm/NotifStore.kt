@@ -44,6 +44,17 @@ object NotifStore {
         save(ctx, next)
     }
 
+    // Ajoute une notification venue du SERVEUR (message admin), avec sa vraie date.
+    fun addServer(ctx: Context, title: String, body: String, kind: String, tsSec: Long) {
+        val item = NotifItem(
+            id = System.currentTimeMillis() + (0..999).random(),
+            title = title, body = body, tsSec = tsSec, read = false, kind = kind
+        )
+        val next = (listOf(item) + _items.value).take(MAX)
+        _items.value = next
+        save(ctx, next)
+    }
+
     fun markAllRead(ctx: Context) {
         val next = _items.value.map { if (it.read) it else it.copy(read = true) }
         _items.value = next
