@@ -200,4 +200,16 @@ object Prefs {
     // ---- Widget écran d'accueil : l'utilisateur a-t-il déjà été invité à l'ajouter ? ----
     fun widgetAdded(ctx: Context): Boolean = sp(ctx).getBoolean("widget_added", false)
     fun setWidgetAdded(ctx: Context, v: Boolean) = sp(ctx).edit().putBoolean("widget_added", v).apply()
+
+    // ---- Notifications serveur déjà vues (évite les doublons / re-sonneries) ----
+    fun serverNotifSeen(ctx: Context, id: String): Boolean {
+        if (id.isBlank()) return true
+        return (sp(ctx).getString("seen_server_notifs", "") ?: "").split(",").contains(id)
+    }
+    fun markServerNotifSeen(ctx: Context, id: String) {
+        if (id.isBlank()) return
+        val cur = (sp(ctx).getString("seen_server_notifs", "") ?: "").split(",").filter { it.isNotBlank() }
+        val next = (cur + id).takeLast(200)
+        sp(ctx).edit().putString("seen_server_notifs", next.joinToString(",")).apply()
+    }
 }
