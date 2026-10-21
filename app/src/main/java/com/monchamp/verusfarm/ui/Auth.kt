@@ -66,13 +66,13 @@ fun AuthFlow(onAuthed: () -> Unit) {
         Spacer(Modifier.height(24.dp))
         Text("Verumine", fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Neon)
         Text(
-            when (mode) {
+            I18n.tr(when (mode) {
                 AuthMode.LOGIN -> "Connecte-toi pour continuer"
                 AuthMode.REGISTER -> "Crée ton compte Verumine"
                 AuthMode.VERIFY -> "Vérifie ton adresse email"
                 AuthMode.FORGOT -> "Réinitialise ton mot de passe"
                 AuthMode.RESET -> "Choisis un nouveau mot de passe"
-            },
+            }),
             fontSize = 14.sp, color = TexteDoux, textAlign = TextAlign.Center,
             modifier = Modifier.padding(top = 6.dp, bottom = 22.dp)
         )
@@ -96,7 +96,7 @@ fun AuthFlow(onAuthed: () -> Unit) {
             }
             AuthMode.VERIFY -> {
                 Text(
-                    "Un code de vérification a été envoyé à\n$email",
+                    I18n.tr("Un code de vérification a été envoyé à") + "\n$email",
                     color = TexteDoux, fontSize = 13.sp, textAlign = TextAlign.Center,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
@@ -107,7 +107,7 @@ fun AuthFlow(onAuthed: () -> Unit) {
             }
             AuthMode.RESET -> {
                 Text(
-                    "Un code a été envoyé à\n$email",
+                    I18n.tr("Un code a été envoyé à") + "\n$email",
                     color = TexteDoux, fontSize = 13.sp, textAlign = TextAlign.Center,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
@@ -119,11 +119,11 @@ fun AuthFlow(onAuthed: () -> Unit) {
 
         if (error != null) {
             Spacer(Modifier.height(10.dp))
-            Text(error!!, color = Corail, fontSize = 13.sp, textAlign = TextAlign.Center)
+            Text(I18n.tr(error!!), color = Corail, fontSize = 13.sp, textAlign = TextAlign.Center)
         }
         if (info != null) {
             Spacer(Modifier.height(10.dp))
-            Text(info!!, color = Menthe, fontSize = 13.sp, textAlign = TextAlign.Center)
+            Text(I18n.tr(info!!), color = Menthe, fontSize = 13.sp, textAlign = TextAlign.Center)
         }
 
         Spacer(Modifier.height(20.dp))
@@ -198,13 +198,13 @@ fun AuthFlow(onAuthed: () -> Unit) {
             modifier = Modifier.fillMaxWidth().height(52.dp)
         ) {
             Text(
-                if (busy) "Patiente…" else when (mode) {
+                I18n.tr(if (busy) "Patiente…" else when (mode) {
                     AuthMode.LOGIN -> "Se connecter"
                     AuthMode.REGISTER -> "Créer mon compte"
                     AuthMode.VERIFY -> "Vérifier"
                     AuthMode.FORGOT -> "Envoyer le code"
                     AuthMode.RESET -> "Réinitialiser"
-                },
+                }),
                 fontSize = 16.sp, fontWeight = FontWeight.Bold
             )
         }
@@ -212,7 +212,7 @@ fun AuthFlow(onAuthed: () -> Unit) {
         // Connexion avec Google (ouvre le navigateur, revient dans l'app via un lien)
         if (mode == AuthMode.LOGIN || mode == AuthMode.REGISTER) {
             Spacer(Modifier.height(14.dp))
-            Text("ou", color = Brume, fontSize = 12.sp)
+            Text(I18n.tr("ou"), color = Brume, fontSize = 12.sp)
             Spacer(Modifier.height(14.dp))
             OutlinedButton(
                 onClick = {
@@ -229,7 +229,7 @@ fun AuthFlow(onAuthed: () -> Unit) {
                 },
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth().height(52.dp)
-            ) { Text("Continuer avec Google", fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
+            ) { Text(I18n.tr("Continuer avec Google"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
         }
 
         Spacer(Modifier.height(18.dp))
@@ -240,23 +240,23 @@ fun AuthFlow(onAuthed: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    "Mot de passe oublié ?",
+                    I18n.tr("Mot de passe oublié ?"),
                     color = Lavande, fontSize = 14.sp,
                     modifier = Modifier.clickable { error = null; info = null; codeInput = ""; mode = AuthMode.FORGOT }
                 )
                 Text(
-                    "Pas de compte ? Créer un compte",
+                    I18n.tr("Pas de compte ? Créer un compte"),
                     color = Lavande, fontSize = 14.sp,
                     modifier = Modifier.clickable { error = null; info = null; mode = AuthMode.REGISTER }
                 )
             }
             AuthMode.FORGOT, AuthMode.RESET -> Text(
-                "Retour à la connexion",
+                I18n.tr("Retour à la connexion"),
                 color = Lavande, fontSize = 14.sp,
                 modifier = Modifier.clickable { error = null; info = null; mode = AuthMode.LOGIN }
             )
             AuthMode.REGISTER -> Text(
-                "Déjà un compte ? Se connecter",
+                I18n.tr("Déjà un compte ? Se connecter"),
                 color = Lavande, fontSize = 14.sp,
                 modifier = Modifier.clickable { error = null; info = null; mode = AuthMode.LOGIN }
             )
@@ -265,7 +265,7 @@ fun AuthFlow(onAuthed: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    "Renvoyer le code",
+                    I18n.tr("Renvoyer le code"),
                     color = Lavande, fontSize = 14.sp,
                     modifier = Modifier.clickable {
                         error = null
@@ -273,7 +273,7 @@ fun AuthFlow(onAuthed: () -> Unit) {
                     }
                 )
                 Text(
-                    "Modifier l'email",
+                    I18n.tr("Modifier l'email"),
                     color = TexteDoux, fontSize = 13.sp,
                     modifier = Modifier.clickable { error = null; info = null; mode = AuthMode.REGISTER }
                 )
@@ -282,7 +282,7 @@ fun AuthFlow(onAuthed: () -> Unit) {
 
         Spacer(Modifier.height(30.dp))
         Text(
-            "En continuant, tu acceptes que Verumine mine de la crypto sur ton appareil selon tes réglages.",
+            I18n.tr("En continuant, tu acceptes que Verumine mine de la crypto sur ton appareil selon tes réglages."),
             color = Brume, fontSize = 11.sp, textAlign = TextAlign.Center
         )
     }
