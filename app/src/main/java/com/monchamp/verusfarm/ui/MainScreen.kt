@@ -195,7 +195,7 @@ fun MainScreen(
             containerColor = CarteHaute
         ) {
             Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 28.dp)) {
-                Text("Plus", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Texte,
+                Text(I18n.tr("Plus"), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Texte,
                     modifier = Modifier.padding(bottom = 10.dp))
                 SheetRow(VIcons.Game, "Jeux", tint = Corail) { showMoreSheet = false; overlay = null; playingGame = null; showGameSheet = true }
                 SheetRow(VIcons.Bell, "Notifications", tint = Ambre) { showMoreSheet = false; overlay = "notifications" }
@@ -242,9 +242,9 @@ private fun SheetRow(icon: ImageVector, label: String, tint: Color = Lavande, en
             Icon(icon, contentDescription = null, tint = if (enabled) tint else Brume, modifier = Modifier.size(20.dp))
         }
         Spacer(Modifier.width(14.dp))
-        Text(label, color = if (enabled) Texte else Brume, fontSize = 15.sp,
+        Text(I18n.tr(label), color = if (enabled) Texte else Brume, fontSize = 15.sp,
             fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-        if (!enabled) Text("Bientôt", color = Brume, fontSize = 11.sp)
+        if (!enabled) Text(I18n.tr("Bientôt"), color = Brume, fontSize = 11.sp)
         else Text("›", color = Lavande, fontSize = 18.sp)
     }
 }
@@ -262,7 +262,7 @@ private fun BackRow(title: String, onBack: () -> Unit) {
             contentAlignment = Alignment.Center
         ) { Text("←", color = Texte, fontSize = 20.sp) }
         Spacer(Modifier.width(12.dp))
-        Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Texte)
+        Text(I18n.tr(title), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Texte)
     }
 }
 
