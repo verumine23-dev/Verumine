@@ -100,7 +100,7 @@ fun NeonCard(
 @Composable
 fun SectionTitle(text: String, modifier: Modifier = Modifier) {
     Text(
-        text, modifier = modifier,
+        I18n.tr(text), modifier = modifier,
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold, color = Texte
     )
@@ -109,15 +109,15 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier) {
 @Composable
 fun TabHeader(title: String, subtitle: String) {
     Column {
-        Text(title, fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Texte)
-        Text(subtitle, fontSize = 14.sp, color = TexteDoux)
+        Text(I18n.tr(title), fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Texte)
+        Text(I18n.tr(subtitle), fontSize = 14.sp, color = TexteDoux)
     }
 }
 
 @Composable
 fun StatCard(label: String, value: String, modifier: Modifier = Modifier, hint: String? = null, hintColor: Color = Menthe) {
     NeonCard(modifier = modifier, padding = 12) {
-        Text(label, fontSize = 12.sp, color = TexteDoux, maxLines = 1)
+        Text(I18n.tr(label), fontSize = 12.sp, color = TexteDoux, maxLines = 1)
         Text(value, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Texte, maxLines = 1)
         if (hint != null) Text(hint, fontSize = 11.sp, color = hintColor, maxLines = 1)
     }
@@ -373,14 +373,14 @@ fun Chip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClic
             .padding(vertical = 10.dp, horizontal = 12.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = if (selected) Color.White else Texte)
+        Text(I18n.tr(label), fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = if (selected) Color.White else Texte)
     }
 }
 
 @Composable
 fun InfoRow(label: String, value: String, valueColor: Color = Texte) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, modifier = Modifier.weight(1f), color = TexteDoux, fontSize = 14.sp)
+        Text(I18n.tr(label), modifier = Modifier.weight(1f), color = TexteDoux, fontSize = 14.sp)
         Text(value, fontWeight = FontWeight.Medium, color = valueColor, textAlign = TextAlign.End, fontSize = 14.sp)
     }
 }
@@ -389,12 +389,12 @@ fun InfoRow(label: String, value: String, valueColor: Color = Texte) {
 fun CheckRow(title: String, detail: String, done: Boolean, action: String, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.SemiBold, color = Texte)
-            Text(detail, fontSize = 12.sp, color = TexteDoux)
+            Text(I18n.tr(title), fontWeight = FontWeight.SemiBold, color = Texte)
+            Text(I18n.tr(detail), fontSize = 12.sp, color = TexteDoux)
         }
         Spacer(Modifier.width(12.dp))
-        if (done) Text("Activé", color = Menthe, fontWeight = FontWeight.SemiBold)
-        else FilledTonalButton(onClick = onClick, shape = RoundedCornerShape(12.dp)) { Text(action) }
+        if (done) Text(I18n.tr("Activé"), color = Menthe, fontWeight = FontWeight.SemiBold)
+        else FilledTonalButton(onClick = onClick, shape = RoundedCornerShape(12.dp)) { Text(I18n.tr(action)) }
     }
 }
 
@@ -402,7 +402,7 @@ fun CheckRow(title: String, detail: String, done: Boolean, action: String, onCli
 @Composable
 fun FieldRow(label: String, value: String, onClick: () -> Unit) {
     Column {
-        Text(label, fontSize = 12.sp, color = TexteDoux)
+        Text(I18n.tr(label), fontSize = 12.sp, color = TexteDoux)
         Row(
             Modifier
                 .fillMaxWidth()
@@ -412,7 +412,7 @@ fun FieldRow(label: String, value: String, onClick: () -> Unit) {
                 .padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(value, color = Texte, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Text(I18n.tr(value), color = Texte, fontSize = 14.sp, modifier = Modifier.weight(1f))
             Icon(VIcons.Chevron, null, tint = Lavande)
         }
     }
@@ -479,7 +479,7 @@ fun FormField(
 ) {
     OutlinedTextField(
         value = value, onValueChange = onChange,
-        label = { Text(label) }, singleLine = singleLine,
+        label = { Text(I18n.tr(label)) }, singleLine = singleLine,
         keyboardOptions = KeyboardOptions(keyboardType = keyboard),
         modifier = Modifier.fillMaxWidth()
     )
