@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -38,6 +39,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -199,26 +201,33 @@ fun ConfettiCoins(modifier: Modifier = Modifier, running: Boolean) {
 @Composable
 fun WinCelebration(reward: String, combo: Int, onFinished: () -> Unit) {
     val pop = remember { Animatable(0f) }
+    val fly = remember { Animatable(0f) }   // 0 = cadeau au centre, 1 = arrivé sur l'icône cadeau (en haut)
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        pop.animateTo(1f, tween(450, easing = EaseOutBack))
-        kotlinx.coroutines.delay(1400)
+        pop.animateTo(1f, tween(420, easing = EaseOutBack))
+        kotlinx.coroutines.delay(600)
+        fly.animateTo(1f, tween(950))        // dézoome et file vers l'icône cadeau de l'accueil
+        kotlinx.coroutines.delay(250)
         onFinished()
     }
-    Box(
+    BoxWithConstraints(
         Modifier
             .fillMaxSize()
             .background(Color(0xCC07021A)),
         contentAlignment = Alignment.Center
     ) {
+        val density = LocalDensity.current
+        // Cible = coin haut-droit, là où flotte l'icône cadeau sur l'accueil.
+        val targetX = with(density) { (maxWidth / 2 - 30.dp).toPx() }
+        val targetY = with(density) { (maxHeight / 2 - 44.dp).toPx() }
+        val startUp = with(density) { 110.dp.toPx() }   // position initiale du cadeau, au-dessus du texte
+
         ConfettiCoins(running = true)
+
         androidx.compose.foundation.layout.Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Icon(
-                VIcons.Trophy, contentDescription = null, tint = Or,
-                modifier = Modifier.size((54 * pop.value).coerceAtLeast(1f).dp)
-            )
+            Spacer(Modifier.size(84.dp))   // place réservée au cadeau qui s'envole
             Text(
                 "GAGNÉ !",
                 fontSize = 40.sp, fontWeight = FontWeight.Black, color = Or,
@@ -234,16 +243,25 @@ fun WinCelebration(reward: String, combo: Int, onFinished: () -> Unit) {
                 Text("+ $reward", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFF2A1A05))
             }
             if (combo >= 2) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.scale(pop.value)
-                ) {
-                    Icon(VIcons.Bolt, contentDescription = null, tint = Corail, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Série x$combo", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Corail)
-                }
+                Text("🔥 Série x$combo", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Corail,
+                    modifier = Modifier.scale(pop.value))
             }
         }
+
+        // Le cadeau (sticker) : surgit au centre-haut, puis dézoome et file vers
+        // l'icône cadeau flottante en haut de l'accueil.
+        val g = fly.value
+        val scale = (1.9f - 1.6f * g).coerceAtLeast(0.25f) * (if (g == 0f) pop.value else 1f)
+        Text(
+            if (g > 0.75f) "🎉" else "🎁",
+            fontSize = 60.sp,
+            modifier = Modifier.graphicsLayer {
+                translationX = targetX * g
+                translationY = -startUp - (targetY - startUp) * g
+                scaleX = scale; scaleY = scale
+                alpha = if (g < 0.85f) 1f else (1f - (g - 0.85f) / 0.15f)
+            }
+        )
     }
 }
 
