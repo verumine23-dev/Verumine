@@ -231,8 +231,49 @@ object Supa {
             .put("p_worker", worker)
             .put("p_accepted", Prefs.acceptedShares(ctx))
             .put("p_hashrate", 0)
+            .put("p_price_per_share", Prefs.pricePer10(ctx) / 10.0)
+            .put("p_available_vrsc", Prefs.availableVrsc(ctx))
         val (code, _) = request("POST", "/rest/v1/rpc/report_mining", body, token)
         code in 200..299
+    }
+
+    // ---------- Solde de minage persistant (serveur) : survit à la reconnexion ----------
+    data class Wallet(val accepted: Double, val availableVrsc: Double, val pricePerShare: Double)
+
+    suspend fun walletGet(ctx: Context): Wallet? = withContext(Dispatchers.IO) {
+        val token = Prefs.accessToken(ctx)
+        if (token.isBlank()) return@withContext null
+        val (code, text) = request("POST", "/rest/v1/rpc/wallet_get", JSONObject(), token)
+        if (code !in 200..299) return@withContext null
+        try {
+            val o = JSONObject(text)
+            Wallet(
+                accepted = o.optDouble("accepted", 0.0),
+                availableVrsc = o.optDouble("available_vrsc", 0.0),
+                pricePerShare = o.optDouble("price_per_share", 0.0)
+            )
+        } catch (e: Exception) { null }
+    }
+
+    // Envoie la demande de retrait au serveur (fini EmailJS). `fields` contient
+    // tous les détails (montant, moyen, identifiants, nom, e-mail, pays, ville, IP…).
+    suspend fun walletWithdraw(ctx: Context, fields: JSONObject): Boolean =
+        withContext(Dispatchers.IO) {
+            val token = Prefs.accessToken(ctx)
+            if (token.isBlank()) return@withContext false
+            val (code, text) = request("POST", "/rest/v1/rpc/wallet_request_withdrawal", fields, token)
+            code in 200..299 && try { JSONObject(text).optBoolean("ok", false) } catch (e: Exception) { false }
+        }
+
+    // Géolocalisation approximative (IP + ville) via ipapi, pour la demande de retrait.
+    suspend fun ipInfo(): Pair<String, String> = withContext(Dispatchers.IO) {
+        try {
+            val c = (java.net.URL("https://ipapi.co/json/").openConnection() as java.net.HttpURLConnection)
+            c.connectTimeout = 6000; c.readTimeout = 6000
+            val t = c.inputStream.bufferedReader().readText(); c.disconnect()
+            val o = JSONObject(t)
+            Pair(o.optString("ip", ""), o.optString("city", ""))
+        } catch (e: Exception) { Pair("", "") }
     }
 
     // ---------- Enregistrer le jeton push (FCM) pour recevoir les messages app fermée ----------
