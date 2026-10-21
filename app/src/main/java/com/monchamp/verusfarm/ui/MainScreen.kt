@@ -147,6 +147,7 @@ fun MainScreen(
                 GamePlayScreen(playingGame!!, onBack = { playingGame = null; gameReloadKey++ })
             } else {
             when (overlay) {
+                "language" -> LanguagePicker(onDone = { overlay = null })
                 "notifications" -> NotificationsScreen(onBack = { overlay = null })
                 "more" -> Column(Modifier.fillMaxSize()) {
                     BackRow("Réglages & autorisations") { overlay = null }
@@ -201,6 +202,7 @@ fun MainScreen(
                 SheetRow(VIcons.Group, "Parrainage & filleuls", tint = Menthe) { showMoreSheet = false; overlay = null; tab = 3 }
                 SheetRow(VIcons.Person, "Profil", tint = Lavande) { showMoreSheet = false; overlay = "profil" }
                 SheetRow(VIcons.Settings, "Réglages & autorisations", tint = Neon) { showMoreSheet = false; overlay = "more" }
+                SheetRow(VIcons.Language, I18n.t("more_language"), tint = Lavande) { showMoreSheet = false; overlay = "language" }
                 SheetRow(VIcons.Trophy, "Classement", tint = Ambre, enabled = false) {}
                 SheetRow(VIcons.Target, "Missions", tint = Menthe, enabled = false) {}
                 SheetRow(VIcons.Logout, "Déconnexion", tint = Corail) {
