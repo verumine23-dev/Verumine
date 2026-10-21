@@ -18,6 +18,12 @@ object Prefs {
     fun isFirstRun(ctx: Context): Boolean = !sp(ctx).getBoolean("first_run_done", false)
     fun markFirstRunDone(ctx: Context) = sp(ctx).edit().putBoolean("first_run_done", true).apply()
 
+    // Langue de l'application (choisie à l'installation, modifiable dans Plus).
+    // "" = pas encore choisie -> on montre le sélecteur au premier lancement.
+    fun language(ctx: Context): String = sp(ctx).getString("app_lang", "") ?: ""
+    fun setLanguage(ctx: Context, code: String) = sp(ctx).edit().putString("app_lang", code).apply()
+    fun languageChosen(ctx: Context): Boolean = language(ctx).isNotBlank()
+
     fun isEnabled(ctx: Context): Boolean = sp(ctx).getBoolean("enabled", false)
     fun setEnabled(ctx: Context, value: Boolean) = sp(ctx).edit().putBoolean("enabled", value).apply()
 
@@ -116,6 +122,7 @@ object Prefs {
     // Nombre cumulé de calculs (parts) acceptés par Luckpool pour cet appareil
     fun acceptedShares(ctx: Context): Double = getDouble(ctx, "accepted_shares", 0.0)
     fun addAcceptedShares(ctx: Context, v: Double) = putDouble(ctx, "accepted_shares", acceptedShares(ctx) + v)
+    fun setAcceptedShares(ctx: Context, v: Double) = putDouble(ctx, "accepted_shares", v)
     // Dernière valeur de parts vue chez Luckpool pour le worker (pour calculer l'écart)
     fun lastWorkerShares(ctx: Context): Double = getDouble(ctx, "last_worker_shares", 0.0)
     fun setLastWorkerShares(ctx: Context, v: Double) = putDouble(ctx, "last_worker_shares", v)
