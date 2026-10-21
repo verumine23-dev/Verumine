@@ -35,6 +35,11 @@ import com.monchamp.verusfarm.ui.AppRoot
 import com.monchamp.verusfarm.ui.AuthFlow
 import com.monchamp.verusfarm.ui.DeviceInfo
 import com.monchamp.verusfarm.ui.SplashScreen
+import com.monchamp.verusfarm.ui.I18n
+import com.monchamp.verusfarm.ui.LanguagePicker
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import com.monchamp.verusfarm.ui.VerusFarmTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -91,14 +96,21 @@ class MainActivity : ComponentActivity() {
         AuthState.refresh(this)
         handleDeepLink(intent)   // retour éventuel de la connexion Google
 
+        I18n.init(this)          // applique la langue choisie (ou français par défaut)
+
         val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
 
         setContent {
             VerusFarmTheme {
+                val layoutDir = if (I18n.isRtl()) LayoutDirection.Rtl else LayoutDirection.Ltr
+                CompositionLocalProvider(LocalLayoutDirection provides layoutDir) {
                 var splashDone by rememberSaveable { mutableStateOf(false) }
+                var langChosen by rememberSaveable { mutableStateOf(Prefs.languageChosen(this@MainActivity)) }
                 val authed by AuthState.loggedIn.collectAsStateWithLifecycle()
                 if (!splashDone) {
                     SplashScreen(onFinished = { splashDone = true })
+                } else if (!langChosen) {
+                    LanguagePicker(onDone = { langChosen = true })
                 } else if (!authed) {
                     AuthFlow(onAuthed = { AuthState.setLoggedIn(true) })
                 } else {
@@ -140,6 +152,7 @@ class MainActivity : ComponentActivity() {
                         showRoulette = false
                     }
                 )
+                }
                 }
             }
         }
