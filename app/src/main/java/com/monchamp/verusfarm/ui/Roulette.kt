@@ -95,11 +95,7 @@ fun RouletteReward(onClaim: () -> Unit, onClose: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(VIcons.Gift, contentDescription = null, tint = Neon, modifier = Modifier.size(24.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Roulette surprise", color = Neon, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                }
+                Text("🎁 Roulette surprise", color = Neon, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                 Text(
                     "Tentative ${(attempt + 1).coerceAtMost(4)} / 4",
                     color = Ambre, fontSize = 16.sp, fontWeight = FontWeight.SemiBold
@@ -146,7 +142,7 @@ private fun Countdown(count: Int) {
     val pulse = rememberInfiniteTransition()
     val s by pulse.animateFloat(0.85f, 1.15f, infiniteRepeatable(tween(600), RepeatMode.Reverse))
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Icon(VIcons.Gift, contentDescription = null, tint = Neon, modifier = Modifier.size(90.dp).scale(s))
+        Text("🎁", fontSize = 90.sp, modifier = Modifier.scale(s))
         Text("Ta récompense arrive…", color = Neon, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Text("$count", color = Ambre, fontSize = 64.sp, fontWeight = FontWeight.Bold)
     }
@@ -177,23 +173,30 @@ private fun Wheel(rotationDeg: Float) {
                     )
                 }
             }
-            // Marqueurs : pastilles dorées (pièces) sur les quartiers gagnants.
+            // Marqueurs (emoji) posés bien droits sur chaque quartier.
+            val paint = android.graphics.Paint().apply {
+                textAlign = android.graphics.Paint.Align.CENTER
+                textSize = r * 0.18f
+                isAntiAlias = true
+            }
             for (i in 0 until SEGMENTS) {
-                if (i % 2 == 0) {
-                    val midDeg = i * sweep + sweep / 2f + rotationDeg
-                    val rad = Math.toRadians(midDeg.toDouble())
-                    val mx = center.x + (r * 0.62f) * cos(rad).toFloat()
-                    val my = center.y + (r * 0.62f) * sin(rad).toFloat()
-                    drawCircle(color = Color(0xFFF5C84B), radius = r * 0.085f, center = Offset(mx, my))
-                    drawCircle(color = Color(0xFF2A1A05), radius = r * 0.035f, center = Offset(mx, my))
+                val midDeg = i * sweep + sweep / 2f + rotationDeg
+                val rad = Math.toRadians(midDeg.toDouble())
+                val mx = center.x + (r * 0.62f) * cos(rad).toFloat()
+                val my = center.y + (r * 0.62f) * sin(rad).toFloat() + paint.textSize / 3f
+                val label = when {
+                    i == 0 -> "🪙"
+                    i % 2 == 0 -> "🎁"
+                    else -> ""
                 }
+                if (label.isNotEmpty()) drawContext.canvas.nativeCanvas.drawText(label, mx, my, paint)
             }
         }
         // Moyeu central
         Box(
             Modifier.size(54.dp).background(CarteHaute, RoundedCornerShape(27.dp)),
             contentAlignment = Alignment.Center
-        ) { Icon(VIcons.Gift, contentDescription = null, tint = Color(0xFFF5C84B), modifier = Modifier.size(26.dp)) }
+        ) { Text("🎁", fontSize = 26.sp) }
         // Pointeur en haut
         Text("▼", color = Neon, fontSize = 30.sp, fontWeight = FontWeight.Bold,
             modifier = Modifier.align(Alignment.TopCenter))
@@ -248,24 +251,19 @@ private fun WinAnimation(onDone: () -> Unit) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("JACKPOT !", color = Color(0xFFFFC53D), fontSize = 34.sp, fontWeight = FontWeight.Bold)
             Box(contentAlignment = Alignment.Center, modifier = Modifier.height(140.dp)) {
-                Icon(
-                    if (opened) VIcons.Trophy else VIcons.Gift, contentDescription = null,
-                    tint = Color(0xFFFFC53D), modifier = Modifier.size(96.dp).scale(gs)
-                )
-                // La pièce d'or sort du cadeau et file vers le bas (icône cadeau de l'accueil).
+                Text(if (opened) "🎉" else "🎁", fontSize = 96.sp, modifier = Modifier.scale(gs))
+                // La pièce d'or sort du cadeau et file vers le bas.
                 if (coinFly) {
-                    Icon(
-                        VIcons.Coin, contentDescription = null, tint = Color(0xFFF5C84B),
-                        modifier = Modifier.size(40.dp).scale(1f - coin.value * 0.4f)
-                            .padding(top = (coin.value * 220f).dp)
-                    )
+                    Text("🪙", fontSize = 40.sp,
+                        modifier = Modifier.scale(1f - coin.value * 0.4f)
+                            .padding(top = (coin.value * 220f).dp))
                 }
             }
             Text("Tu as gagné le pactole : énergie rechargée + XP bonus !",
                 color = Texte, fontSize = 15.sp, textAlign = TextAlign.Center)
             Button(onClick = onDone, shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Violet)) {
-                Text("Récupérer", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Récupérer 🎁", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
