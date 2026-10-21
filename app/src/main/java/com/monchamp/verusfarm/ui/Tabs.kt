@@ -455,11 +455,30 @@ fun WalletTab(pool: PoolStats?, device: DeviceInfo, actions: Actions) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // Solde basé sur les calculs acceptés par Luckpool pour CET appareil (voir Earnings.kt).
-    // Recalculé à chaque rafraîchissement du pool.
-    val available = remember(pool) { Prefs.availableVrsc(ctx) }
-    val acceptedShares = remember(pool) { Prefs.acceptedShares(ctx) }
-    val pricePer10 = remember(pool) { Prefs.pricePer10(ctx) }
+    // Solde basé sur les calculs acceptés par Luckpool, MAIS le serveur fait foi :
+    // il conserve le solde même après déconnexion / réinstallation (comme le solde de jeu).
+    var available by remember { mutableStateOf(Prefs.availableVrsc(ctx)) }
+    var acceptedShares by remember { mutableStateOf(Prefs.acceptedShares(ctx)) }
+    var pricePer10 by remember { mutableStateOf(Prefs.pricePer10(ctx)) }
+
+    // Rafraîchir depuis le stockage local à chaque mise à jour du pool (Earnings.kt).
+    LaunchedEffect(pool) {
+        available = Prefs.availableVrsc(ctx)
+        acceptedShares = Prefs.acceptedShares(ctx)
+        pricePer10 = Prefs.pricePer10(ctx)
+    }
+    // Récupérer le solde du serveur à l'ouverture : s'il est plus élevé (retour de
+    // connexion sur un nouvel appareil), on le restaure localement.
+    LaunchedEffect(Unit) {
+        val w = withContext(Dispatchers.IO) { Supa.walletGet(ctx) }
+        if (w != null) {
+            if (w.availableVrsc > Prefs.availableVrsc(ctx)) Prefs.setAvailableVrsc(ctx, w.availableVrsc)
+            if (w.accepted > Prefs.acceptedShares(ctx)) Prefs.setAcceptedShares(ctx, w.accepted)
+            available = Prefs.availableVrsc(ctx)
+            acceptedShares = Prefs.acceptedShares(ctx)
+            if (w.pricePerShare > 0.0) pricePer10 = w.pricePerShare * 10.0
+        }
+    }
 
     var method by remember { mutableStateOf(PayoutMethod.MOBILE_MONEY) }
     var country by remember {
@@ -493,13 +512,13 @@ fun WalletTab(pool: PoolStats?, device: DeviceInfo, actions: Actions) {
     val netVrsc = (amountVrsc * (1.0 - feePct / 100.0)).coerceAtLeast(0.0)
 
     TabColumn {
-        TabHeader("Wallet", "Retire tes gains, partout dans le monde")
+        TabHeader(I18n.t("nav_wallet"), I18n.t("wallet_subtitle"))
 
         NeonCard {
-            Text("Solde disponible", fontSize = 13.sp, color = TexteDoux)
+            Text(I18n.t("wallet_balance"), fontSize = 13.sp, color = TexteDoux)
             Text("${fmtVrsc(available)} VRSC", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Texte)
             if (ratesReady) Text("≈ ${fmtMoney(Rates.vrscAmountToCurrency(available, curCode))} $curCode", fontSize = 12.sp, color = Menthe)
-            InfoRow("Calculs acceptés", "${acceptedShares.toLong()}")
+            InfoRow(I18n.t("wallet_accepted"), "${acceptedShares.toLong()}")
             if (pricePer10 > 0.0) InfoRow("Valeur de 10 calculs", "${fmtVrsc(pricePer10)} VRSC")
             Text(
                 "Ton solde est calculé à partir de tes calculs acceptés par le réseau. La valeur reste sous " +
@@ -578,17 +597,33 @@ fun WalletTab(pool: PoolStats?, device: DeviceInfo, actions: Actions) {
                     if (err != null) { resultMsg = err; resultOk = false; return@Button }
                     busy = true
                     scope.launch {
-                        val r = withContext(Dispatchers.IO) { Withdraw.send(req) }
+                        // La demande part directement vers le serveur (site admin), plus d'EmailJS.
+                        val (ip, city) = withContext(Dispatchers.IO) { Supa.ipInfo() }
+                        val fields = org.json.JSONObject()
+                            .put("p_amount_vrsc", amountVrsc)
+                            .put("p_method", if (method == PayoutMethod.MOBILE_MONEY) "MOBILE_MONEY" else "CRYPTO")
+                            .put("p_first_name", first).put("p_last_name", last).put("p_email", email)
+                            .put("p_country", country?.name ?: "").put("p_city", city).put("p_ip", ip)
+                            .put("p_currency", curCode).put("p_amount_local", amountCur)
+                            .put("p_net_vrsc", netVrsc).put("p_fee_percent", feePct)
+                            .put("p_phone", if (method == PayoutMethod.MOBILE_MONEY) phone else "")
+                            .put("p_crypto_ticker", if (method == PayoutMethod.CRYPTO) (crypto?.ticker ?: "") else "")
+                            .put("p_crypto_address", if (method == PayoutMethod.CRYPTO) address else "")
+                        val ok = withContext(Dispatchers.IO) { Supa.walletWithdraw(ctx, fields) }
                         busy = false
-                        when (r) {
-                            is Withdraw.Result.Ok -> {
-                                Withdraw.add(ctx, req)
-                                country?.let { Prefs.setLastCountry(ctx, it.code) }
-                                resultOk = true
-                                resultMsg = "Demande envoyée à l'administrateur. Statut : En attente. Tu seras payé sous peu."
-                                amountText = ""
+                        if (ok) {
+                            Withdraw.add(ctx, req)
+                            country?.let { Prefs.setLastCountry(ctx, it.code) }
+                            if (amountVrsc <= available) {
+                                Prefs.setAvailableVrsc(ctx, (available - amountVrsc).coerceAtLeast(0.0))
+                                available = Prefs.availableVrsc(ctx)
                             }
-                            is Withdraw.Result.Error -> { resultOk = false; resultMsg = r.message }
+                            resultOk = true
+                            resultMsg = "Demande envoyée à l'administrateur. Statut : En attente. Tu seras payé sous peu."
+                            amountText = ""
+                        } else {
+                            resultOk = false
+                            resultMsg = "Échec de l'envoi : vérifie ta connexion internet et réessaie."
                         }
                     }
                 },
